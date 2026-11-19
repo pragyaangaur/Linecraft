@@ -138,7 +138,7 @@ def write_svg(path, rows):
     """Predicted (bars) and measured (dots) working ranges for each sync phase, with no plotting library."""
     w, h = 640, 60 + 46 * len(rows)
     left, right = 70, w - 30
-    dmin, dmax = -0.06, 0.06
+    dmin, dmax = -0.07, 0.07
     x = lambda d: left + (d - dmin) / (dmax - dmin) * (right - left)
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" font-family="sans-serif" font-size="12">',
            '<rect width="100%" height="100%" fill="white"/>',
