@@ -247,7 +247,7 @@ crc = ((crc << 1) AND mask) XOR (fb ? CRC_POLY : 0)
 
 Bits are fed in wire order. A protocol that sends bytes least significant bit first and uses a "reflected" CRC is handled by this same rule, because feeding wire order bits into a normal CRC gives the reflected CRC with its bits reversed. `MOV OSR, CRC` already sends them in the right order.
 
-The init value is all ones if `CRC_INIT_ONES = 1` and 0 otherwise. `xorout` is all ones (masked) if `CRC_XOROUT_ONES = 1` and 0 otherwise.
+The init value is all ones if `CRC_INIT_ONES = 1` and 0 otherwise. After `CRC_WIDTH` changes, the CRC register is undefined until the next CRC reset (`CTL` or a restart), because the hardware keeps the register aligned to the current width. `xorout` is all ones (masked) if `CRC_XOROUT_ONES = 1` and 0 otherwise.
 
 Which bits are fed is set by `CRC_SRC`. 0 feeds nothing. 1 feeds data bits leaving through `OUT`. 2 feeds data bits entering through `IN`. For an `IN` or `OUT` of `n` bits, the first `min(n, 8)` bits are fed in shift order. For a right shift that order is `d[0], d[1], ...`, and for a left shift it is `d[n-1], d[n-2], ...`. A line coder step feeds its one data bit only when `xfer` is 1.
 
