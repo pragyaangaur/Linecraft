@@ -465,6 +465,7 @@ module weft_shuttle (
         feed_bits = 8'd0;  feed_n = 4'd0;  crc_reset = 1'b0;
         irq_set = 8'd0;  irq_clr = 8'd0;
         pw = 32'd0;  wm = 16'd0;  wv = 16'd0;
+        k = 0;
 
         if (tick && dly != 5'd0)
             dly_n = dly - 5'd1;

@@ -68,14 +68,16 @@ module tt_um_pragyaangaur_weft (
     wire wr_global = h_wr && (h_waddr[14:8] == 7'd0);
     wire [7:0] host_irq_clr = (wr_global && h_waddr[7:0] == 8'h03) ? h_wdata : 8'd0;
     wire [7:0] host_irq_set = (wr_global && h_waddr[7:0] == 8'h04) ? h_wdata : 8'd0;
+    // Each combinational loop has its own loop variable, assigned on every
+    // path, so that no synthesis tool can infer a latch for it.
     reg  [7:0] all_set, all_clr;
-    integer i;
+    integer ii;
     always @(*) begin
         all_set = host_irq_set;
         all_clr = host_irq_clr;
-        for (i = 0; i < NS; i = i + 1) begin
-            all_set = all_set | irq_set_s[i];
-            all_clr = all_clr | irq_clr_s[i];
+        for (ii = 0; ii < NS; ii = ii + 1) begin
+            all_set = all_set | irq_set_s[ii];
+            all_clr = all_clr | irq_clr_s[ii];
         end
     end
 
@@ -153,8 +155,10 @@ module tt_um_pragyaangaur_weft (
     // ------------------------------------------------------------------
     // Host read data (for the address the host port is about to read)
     // ------------------------------------------------------------------
+    integer ir;
     always @(*) begin
         h_rdata = 8'd0;
+        ir = 0;
         if (h_addr[14:8] == 7'd0) begin
             case (h_addr[7:0])
                 8'h00: h_rdata = 8'h4C;
@@ -163,11 +167,11 @@ module tt_um_pragyaangaur_weft (
                 8'h05: h_rdata = {~s_rx_empty, ~s_tx_full};
                 default: ;
             endcase
-            for (i = 0; i < NS; i = i + 1) begin
-                if ({24'd0, h_addr[7:0]} == 32'd8 + i) h_rdata = s_rx_head[i];
-                if ({24'd0, h_addr[7:0]} == 32'd6 + i / 2) begin
-                    if (i % 2 == 0) h_rdata[2:0] = s_rx_level[i];
-                    else            h_rdata[6:4] = s_rx_level[i];
+            for (ir = 0; ir < NS; ir = ir + 1) begin
+                if ({24'd0, h_addr[7:0]} == 32'd8 + ir) h_rdata = s_rx_head[ir];
+                if ({24'd0, h_addr[7:0]} == 32'd6 + ir / 2) begin
+                    if (ir % 2 == 0) h_rdata[2:0] = s_rx_level[ir];
+                    else             h_rdata[6:4] = s_rx_level[ir];
                 end
             end
         end
