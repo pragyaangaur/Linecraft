@@ -124,7 +124,7 @@ Two separate implementations were written from [docs/spec.md](docs/spec.md): the
 
 - **Lockstep random testing** ([test/test_lockstep.py](test/test_lockstep.py)). Each trial builds a random 64 instruction program and random configurations, line coder tables, CRC settings and FIFO contents for all four shuttles. It loads them into the RTL through the SPI port and into the model through its register interface, then drives random pin inputs. On every clock cycle it compares every output pin, the IRQ flags and fifteen architectural registers of every shuttle. This found one real gap in the spec: the meaning of a count field above 32, which the RTL and the model read differently. The spec now defines it.
 - **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against peer models and decoders in [test/peers.py](test/peers.py) that share no code with the Weft toolchain.
-- **Model and toolchain tests** ([weft/tests](weft/tests)), 169 of them. They cover the assembler round trip, every catalogue CRC (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8, CRC-7, CRC-16/CCITT) sent bit-exact on the wire through `MOV OSR, CRC`, and the line code analyses.
+- **Model and toolchain tests** ([weft/tests](weft/tests)), 173 of them. They cover the assembler round trip, every catalogue CRC (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8, CRC-7, CRC-16/CCITT) sent bit-exact on the wire through `MOV OSR, CRC`, and the line code analyses.
 
 - **Formal proofs** ([formal/run.sh](formal/run.sh)), which hold on every cycle of every run and take a few seconds.
   - The fractional divider has zero cumulative drift. With the configuration held, 256 times the elapsed cycles plus the accumulator always equals the sum of 256N + DIV_FRAC over the ticks so far, so tick k falls exactly at floor(k(N + DIV_FRAC/256)) cycles. This is proved by k-induction with z3 for every DIV_INT and DIV_FRAC.
@@ -146,6 +146,14 @@ python experiments/cdr_sweep.py --plot sweep.svg
 
 The cocotb tests need Icarus Verilog. `LOCKSTEP_TRIALS`, `LOCKSTEP_CYCLES` and `LOCKSTEP_SEED` control the random lockstep run. Make does not handle a project path that contains spaces, so run it from a path without them.
 
+## Using the chip
+
+[weft/protocols.py](weft/protocols.py) has one function per protocol that returns the host writes for a shuttle, its pins, its rate and its program origin. `python -m weft.export` saves them as JSON, and [host/weft_rp2350.py](host/weft_rp2350.py) is a MicroPython driver for the demo board's RP2350 that replays them over SPI and moves data through the FIFOs. The driver has not been run on hardware yet.
+
+```bash
+python -m weft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=50e6 > uart.json
+```
+
 ## Repository layout
 
 | Path | Contents |
@@ -156,3 +164,5 @@ The cocotb tests need Icarus Verilog. `LOCKSTEP_TRIALS`, `LOCKSTEP_CYCLES` and `
 | `weft/` | Assembler, cycle accurate model, configuration helper, line codes, CRC catalogue, analysis and receiver synthesis |
 | `test/` | cocotb tests, host SPI driver and peer models |
 | `experiments/` | The clock tolerance sweep |
+| `host/` | MicroPython driver for the RP2350 on the demo board |
+| `formal/` | Formal proof script |
