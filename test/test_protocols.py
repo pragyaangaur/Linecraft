@@ -192,12 +192,18 @@ def usb_tx_config(rate_scale=1.0):
     return cfg
 
 
-def usb_rx_config(sync_phase=7):
+def usb_rx_config(sync_phase=7, synthesised=False):
     cfg = ShuttleConfig(in_base=8, in_right=True, autopush=True, push_thresh=8,
                         sync_en=True, sync_pin=8, sync_phase=sync_phase,
                         match_mask=0x0300, match_val=0)
     cfg.set_ratio(CPB / 2)
     cfg.use_line_code(linecodes.usb(), "rx")
+    if synthesised:
+        # Replace the hand-written receiver with one derived from the transmitter.
+        from weft.synth import synthesize_rx
+        code = linecodes.usb()
+        rx = synthesize_rx(code.tx, code.tx_init)
+        cfg.fst_table, cfg.fst_init = rx.table, rx.init
     cfg.use_crc(USB_CRC, CRC_RX)
     return cfg
 
@@ -234,11 +240,15 @@ async def test_usb_ls_tx(dut):
 
 
 @cocotb.test()
-async def test_usb_ls_loopback(dut):
-    """Shuttle 0 sends a packet and shuttle 1 receives it on the same pins, checking the CRC."""
+@cocotb.parametrize(synthesised=[False, True])
+async def test_usb_ls_loopback(dut, synthesised):
+    """Shuttle 0 sends a packet and shuttle 1 receives it on the same pins, checking the CRC.
+
+    With `synthesised`, the receiver's line coder table is the one weft.synth derives from the transmit table.
+    """
     host = await start(dut)
     await load(host, 0, usb_tx_config(), program("usb_ls_tx"))
-    await load(host, 1, usb_rx_config(), program("usb_ls_rx", origin=32))
+    await load(host, 1, usb_rx_config(synthesised=synthesised), program("usb_ls_rx", origin=32))
     await host.write(0x001, 0x3)
     payload = [0x4B, 0x01, 0x80, 0xFF]        # DATA1 PID and three bytes
     rec = cocotb.start_soon(record_usb(dut, 4000, loopback=True))
