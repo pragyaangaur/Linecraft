@@ -16,6 +16,8 @@ Weft gives each layer its own programmable hardware. The shuttle program and its
 
 ## Architecture
 
+![Weft architecture](docs/img/architecture.svg)
+
 | Part | What it is |
 | --- | --- |
 | Shuttles | Four engines, each with X and Y registers, 32 bit input and output shift registers, a 5 bit delay field on every instruction, up to 3 side-set pins, wrap registers for free loops, and 4 byte TX and RX FIFOs |
