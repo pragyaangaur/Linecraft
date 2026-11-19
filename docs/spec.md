@@ -115,7 +115,7 @@ The jump is taken if the condition holds. `X--` and `Y--` decrement the register
 | 2 | `X--`: `x != 0`, then `x = x - 1` |
 | 3 | `!Y`: `y == 0` |
 | 4 | `Y--`: `y != 0`, then `y = y - 1` |
-| 5 | `X!=Y` |
+| 5 | `MORE`: an `OUT` would not stall for lack of data. True when `osr_left != 0`, or `AUTOPULL = 1` and the TX FIFO is not empty, or `FPEND` is true. It is meant for line coder transmit loops, which must keep a fixed number of ticks per symbol up to the last stuffed bit |
 | 6 | `PIN`: `pins[JMP_PIN] == 1` |
 | 7 | `!PIN`: `pins[JMP_PIN] == 0` |
 | 8 | `!OSRE`: `osr_left != 0` |
@@ -230,7 +230,7 @@ The line coder table has 32 entries of 7 bits. Entry `T[s][b]` sits at index `2*
 
 Each step reads one entry and always moves to `fst = next`. If `flag` is 1, it sets `fst_err = 1`.
 
-On transmit (`OUT FST, 1`), the input `b` is the next data bit, which is `osr[0]` if `OUT_RIGHT = 1` and `osr[31]` otherwise. The entry's `out` bit goes to pin `OUT_BASE`. If `xfer` is 1, the bit is consumed: the OSR shifts by one, `osr_left` drops by one (not below 0), and the bit `b` is fed to the CRC if `CRC_SRC` is transmit. If `xfer` is 0, the OSR does not change.
+On transmit (`OUT FST, 1`), the input `b` is the next data bit, which is `osr[0]` if `OUT_RIGHT = 1` and `osr[31]` otherwise. The entry's `out` bit goes to pin `OUT_BASE`. If `FST_DIFF = 1`, the inverted bit also goes to pin `OUT_BASE + 1`, which gives a differential pair such as USB D- and D+. If `xfer` is 1, the bit is consumed: the OSR shifts by one, `osr_left` drops by one (not below 0), and the bit `b` is fed to the CRC if `CRC_SRC` is transmit. If `xfer` is 0, the OSR does not change.
 
 On receive (`IN FST, 1`), the input `b` is `pins[IN_BASE]`. If `xfer` is 1, the bit `out` is shifted into `isr` as a one bit `IN`, with autopush, and is fed to the CRC if `CRC_SRC` is receive. If `xfer` is 0, nothing goes into `isr`.
 
@@ -288,7 +288,7 @@ Shuttle configuration registers:
 | `0x06` | `SET_COUNT` | 4 (0 to 8) |
 | `0x07` | `SIDE_BASE` | 4 |
 | `0x08` | `SIDE_COUNT` in `[1:0]` (0 to 3), `SIDE_PINDIR` in `[2]` | |
-| `0x09` | `OUT_RIGHT` `[0]`, `IN_RIGHT` `[1]`, `AUTOPULL` `[2]`, `AUTOPUSH` `[3]` | |
+| `0x09` | `OUT_RIGHT` `[0]`, `IN_RIGHT` `[1]`, `AUTOPULL` `[2]`, `AUTOPUSH` `[3]`, `FST_DIFF` `[4]` | |
 | `0x0A` | `PULL_THRESH` | 6 (1 to 32) |
 | `0x0B` | `PUSH_THRESH` | 6 (1 to 32) |
 | `0x0C` | `WRAP_BOT` | 6 |

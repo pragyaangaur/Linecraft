@@ -47,7 +47,7 @@ module weft_shuttle (
     reg [3:0]  in_base, out_base, set_base, set_count, side_base;
     reg [1:0]  side_count;
     reg        side_pindir;
-    reg        out_right, in_right, autopull, autopush;
+    reg        out_right, in_right, autopull, autopush, fst_diff;
     reg [5:0]  pull_thresh, push_thresh;
     reg [5:0]  wrap_bot, wrap_top, start_pc;
     reg [3:0]  jmp_pin;
@@ -66,7 +66,7 @@ module weft_shuttle (
             div_int <= 16'd1;  div_frac <= 8'd0;
             in_base <= 0; out_base <= 0; set_base <= 0; set_count <= 0;
             side_base <= 0; side_count <= 0; side_pindir <= 0;
-            out_right <= 0; in_right <= 0; autopull <= 0; autopush <= 0;
+            out_right <= 0; in_right <= 0; autopull <= 0; autopush <= 0; fst_diff <= 0;
             pull_thresh <= 6'd8; push_thresh <= 6'd8;
             wrap_bot <= 0; wrap_top <= 0; start_pc <= 0; jmp_pin <= 0;
             sync_en <= 0; sync_pin <= 0; sync_phase <= 0; fst_init <= 0;
@@ -85,7 +85,8 @@ module weft_shuttle (
                 6'h07: side_base      <= wdata[3:0];
                 6'h08: begin side_count <= wdata[1:0]; side_pindir <= wdata[2]; end
                 6'h09: begin out_right <= wdata[0]; in_right <= wdata[1];
-                             autopull  <= wdata[2]; autopush <= wdata[3]; end
+                             autopull  <= wdata[2]; autopush <= wdata[3];
+                             fst_diff  <= wdata[4]; end
                 6'h0A: pull_thresh    <= wdata[5:0];
                 6'h0B: push_thresh    <= wdata[5:0];
                 6'h0C: wrap_bot       <= wdata[5:0];
@@ -273,7 +274,7 @@ module weft_shuttle (
             4'd2:  cond = (x != 16'd0);
             4'd3:  cond = (y == 16'd0);
             4'd4:  cond = (y != 16'd0);
-            4'd5:  cond = (x != y);
+            4'd5:  cond = (osr_left != 6'd0) | (autopull & ~tx_empty) | fpend;   // MORE
             4'd6:  cond = pins[jmp_pin];
             4'd7:  cond = ~pins[jmp_pin];
             4'd8:  cond = (osr_left != 6'd0);
@@ -483,6 +484,7 @@ module weft_shuttle (
                         fst_n = tx_e[3:0];
                         if (tx_e[6]) fst_err_n = 1'b1;
                         pv_n[out_base] = tx_e[4];
+                        if (fst_diff) pv_n[out_base + 4'd1] = ~tx_e[4];
                         if (out_do) begin
                             osr_n = osr_sh;
                             osr_left_n = left_sh;
