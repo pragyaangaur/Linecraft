@@ -273,7 +273,7 @@ For a read, the data byte is chosen when the previous byte ends, and MISO shows 
 | `0x005` | R | FIFO status: `[3:0]` TX not full, `[7:4]` RX not empty |
 | `0x006` | R | RX FIFO levels (0 to 4): shuttle 0 in `[2:0]`, shuttle 1 in `[6:4]` |
 | `0x007` | R | RX FIFO levels: shuttle 2 in `[2:0]`, shuttle 3 in `[6:4]` |
-| `0x008 + e` | R/W | Write pushes a byte into the TX FIFO of shuttle `e`. Read pops its RX FIFO (0 if empty). Writes to a full FIFO are dropped |
+| `0x008 + e` | R/W | Write pushes a byte into the TX FIFO of shuttle `e`. Read pops its RX FIFO (0 if empty). A host push or pop lands at the end of a clock cycle, after the shuttle's own FIFO action in that cycle, and is judged against the FIFO as it was at the start of that cycle: a push to a FIFO that was full is dropped, and a pop from a FIFO that was empty does nothing |
 | `0x100 + 0x40*e + k` | W | Shuttle `e` configuration register `k` (table below) |
 | `0x200 + 0x20*e + j` | W | Shuttle `e` line coder entry `j` (7 bits) |
 | `0x400 + 4*i + b` | W | Instruction `i`, byte `b`. Bytes 0 and 1 are held. Writing byte 2 stores `{byte2, byte1, byte0}` as instruction `i`. Byte 3 is ignored |

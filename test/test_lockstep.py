@@ -77,6 +77,7 @@ class Coverage:
 COVERAGE = Coverage()
 CYCLES = int(os.environ.get("LOCKSTEP_CYCLES", "600"))
 SEED = int(os.environ.get("LOCKSTEP_SEED", "1"))
+HOST_TRAFFIC = os.environ.get("LOCKSTEP_HOST_TRAFFIC", "1") == "1"
 
 
 def random_instruction(rng):
@@ -199,24 +200,57 @@ async def one_trial(dut, rng, trial):
                                              int(top.pins_prev.value))
 
     # From here on the model takes the same pin inputs as the RTL on every
-    # cycle: the host's pins until its write is over, then random ones.
-    ui_rand, uio_rand = 0, 0
+    # cycle. Once the enable write is over, a background host keeps pushing
+    # and popping FIFO bytes while the shuttles run, and random values go on
+    # the pins the host does not use. Every host push or pop that the RTL's
+    # host port makes is copied into the model at the same clock edge, after
+    # the shuttles' own step, judged against the FIFO as it was at the start
+    # of the cycle (the rule in docs/spec.md).
+    traffic = None
+    popped_rtl, popped_model = [], []
+
+    async def host_traffic():
+        # Change pins only just after rising edges, as the host driver always does.
+        await RisingEdge(dut.clk)
+        while True:
+            e = rng.randrange(4)
+            if rng.random() < 0.5:
+                await host.write(0x008 + e, [rng.randrange(256) for _ in range(rng.randrange(1, 4))])
+            else:
+                popped_rtl.extend((e, b) for b in await host.read(0x008 + e, rng.randrange(1, 3)))
+
+    uio_rand = 0
     for cycle in range(CYCLES):
         await FallingEdge(dut.clk)
         for e in range(4):
             COVERAGE.sample(top.sh[e].u)
         if writer.done():
+            if traffic is None and HOST_TRAFFIC:
+                traffic = cocotb.start_soon(host_traffic())
             if rng.random() < 0.3:
-                ui_rand ^= 1 << rng.randrange(5)
+                host.set_pins(rng.randrange(32), 0x1F)
             if rng.random() < 0.3:
                 uio_rand ^= 1 << rng.randrange(8)
-            dut.ui_in.value = 0x80 | ui_rand        # CSn stays high
             dut.uio_in.value = uio_rand
-            ui, uio = 0x80 | ui_rand, uio_rand
+            # A value written this timestep cannot be read back yet, so use
+            # the host driver's copy of ui_in and our own copy of uio_in.
+            ui, uio = host.ui, uio_rand
         else:
             ui, uio = int(dut.ui_in.value), int(dut.uio_in.value)
+        wr = int(top.h_wr.value) and 8 <= int(top.h_waddr.value) <= 11
+        rd = int(top.h_rd_commit.value) and 8 <= int(top.h_rd_addr.value) <= 11
+        if wr:
+            we, wbyte = int(top.h_waddr.value) - 8, int(top.h_wdata.value)
+            tx_full_before = len(chip.shuttles[we].tx_fifo) >= 4
+        if rd:
+            re = int(top.h_rd_addr.value) - 8
+            rx_empty_before = len(chip.shuttles[re].rx_fifo) == 0
         before = [model_state(sh) for sh in chip.shuttles]
         want = chip.step(ui, uio)
+        if wr and not tx_full_before:
+            chip.shuttles[we].tx_fifo.append(wbyte)
+        if rd:
+            popped_model.append((re, chip.shuttles[re].rx_fifo.popleft() if not rx_empty_before else 0))
         await RisingEdge(dut.clk)
         await ReadOnly()
         got = (int(dut.uo_out.value) & 0x7F, int(dut.uio_out.value), int(dut.uio_oe.value))
@@ -234,7 +268,12 @@ async def one_trial(dut, rng, trial):
                 assert False, f"{where} shuttle {e} state differs (rtl, model): {diff}"
         assert int(top.irq.value) == chip.irq, f"{where} irq rtl {int(top.irq.value):#x} model {chip.irq:#x}"
         assert got == tuple(want), f"{where} pins rtl {got} model {tuple(want)}"
+    if traffic is not None:
+        traffic.cancel()
     await FallingEdge(dut.clk)
+    # Every byte the host read must be the byte the model popped at that edge.
+    done = min(len(popped_rtl), len(popped_model))
+    assert popped_rtl[:done] == popped_model[:done], f"trial {trial}: host reads differ from the model"
     return words
 
 
