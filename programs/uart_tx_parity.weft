@@ -1,0 +1,23 @@
+; UART transmitter with a parity bit, 8 data bits, 1 stop bit.
+; The parity bit comes from the CRC unit set to width 1 and polynomial 1:
+; that "CRC" is the XOR of the data bits, which is even parity, and a final
+; XOR of all ones turns it into odd parity. One bit is 8 ticks.
+; Config: SET_BASE = OUT_BASE = TX pin, SET_COUNT = 1, OUT_RIGHT = 1,
+; CRC_WIDTH = 1, CRC_POLY = 1, CRC_SRC = transmit, CRC_XOROUT_ONES = 1 for
+; odd parity or 0 for even.
+.program uart_tx_parity
+    set pins, 1
+    set pindirs, 1
+.wrap_target
+    pull block
+    ctl crc
+    set x, 6
+    set pins, 0      [7]     ; start bit
+bit:
+    out pins, 1      [6]     ; data bits 0 to 6
+    jmp x-- bit
+    out pins, 1      [5]     ; data bit 7
+    mov osr, crc     [1]     ; parity of all eight bits, ready to send
+    out pins, 1      [7]     ; parity bit
+    set pins, 1      [7]     ; stop bit
+.wrap

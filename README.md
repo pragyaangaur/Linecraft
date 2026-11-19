@@ -105,6 +105,7 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | Protocol | Program | What checks it |
 | --- | --- | --- |
 | UART 8N1 transmit | `uart_tx.weft` | A decoder that samples mid-bit and checks start and stop bits |
+| UART 8O1 and 8E1 transmit | `uart_tx_parity.weft` | A frame decoder that checks the parity bit, which the CRC unit makes as a 1 bit CRC with polynomial 1 |
 | UART 8N1 receive | `uart_rx.weft` | Frames driven on a pin, including a bad stop bit that must raise IRQ 0 |
 | SPI controller, modes 0 to 3 | `spi_master.weft` | An SPI target model for each CPOL and CPHA that checks MOSI and replies on MISO, with CS held across bytes |
 | SPI target, mode 0 | `spi_target.weft` | An SPI controller model clocks the chip from its input pins at clk / 16 and checks MISO and the received bytes |

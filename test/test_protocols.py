@@ -418,3 +418,40 @@ async def test_uart_tx_115200_edges(dut):
     for k, t in enumerate(times[:10]):
         ideal = t0 + k * cycles_per_bit
         assert abs(t - ideal) <= 1.0 + 1e-9, f"edge {k} at {t - t0} cycles, ideal {ideal - t0:.2f}"
+
+
+@cocotb.test()
+@cocotb.parametrize(odd=[True, False])
+async def test_uart_parity_from_crc(dut, odd):
+    """8O1 and 8E1 frames where the parity bit is a 1 bit CRC with polynomial 1."""
+    host = await start(dut)
+    cfg = ShuttleConfig(out_base=1, set_base=1, set_count=1, out_right=True,
+                        crc_src=CRC_TX, crc_width=1, crc_poly=1, crc_xorout_ones=odd)
+    cfg.set_ratio(2)                                   # 16 cycles per bit
+    await load(host, 0, cfg, program("uart_tx_parity"))
+    await host.write(0x001, 0x1)
+    await ClockCycles(dut.clk, 20)
+    data = [0x00, 0x01, 0x7F, 0xFF, 0xA5]
+
+    async def frames(n):
+        out = []
+        while len(out) < n:
+            await RisingEdge(dut.clk)
+            if (int(dut.uo_out.value) >> 1) & 1:
+                continue
+            await ClockCycles(dut.clk, 8)
+            bits = []
+            for _ in range(10):
+                await ClockCycles(dut.clk, 16)
+                bits.append((int(dut.uo_out.value) >> 1) & 1)
+            out.append(bits)
+        return out
+
+    cap = cocotb.start_soon(frames(len(data)))
+    await push_paced(host, 0, data)
+    for byte, bits in zip(data, await cap):
+        value = sum(b << i for i, b in enumerate(bits[:8]))
+        assert value == byte
+        ones = sum(bits[:9])
+        assert ones % 2 == (1 if odd else 0), f"{byte:#x}: parity bit {bits[8]}"
+        assert bits[9] == 1, "stop bit"
