@@ -1,0 +1,21 @@
+; SPI target (peripheral), mode 0, 8 bit words, MSB first.
+; The chip follows an external controller's SCK. It sends the bytes the
+; host pushed and pushes the bytes it receives. Every input passes through
+; the two flop synchronizer, so SCK must be at most clk / 16 for MISO to be
+; ready before the controller's next rising edge. The host keeps the TX
+; FIFO ahead of the controller, since an empty FIFO stalls the shuttle.
+; Pins (absolute gpio numbers in the defines): CS and SCK inputs, MOSI =
+; IN_BASE, MISO = OUT_BASE = SET_BASE.
+; Config: SET_COUNT = 1, AUTOPULL and AUTOPUSH with thresholds 8,
+; OUT_RIGHT = 0, IN_RIGHT = 0.
+.program spi_target
+.define SCK 1
+.define CS 3
+    set pindirs, 1
+    wait 0 gpio CS                  ; start with the first transaction
+.wrap_target
+    out pins, 1                     ; MISO, before the rising edge
+    wait 1 gpio SCK
+    in pins, 1                      ; MOSI at the rising edge
+    wait 0 gpio SCK
+.wrap

@@ -348,3 +348,38 @@ async def test_ws2812(dut):
     got = [sum(bits[8 * i + k] << (7 - k) for k in range(8)) for i in range(len(colours))]
     assert got == colours, [hex(g) for g in got]
     assert all(11 <= w <= 14 or 42 <= w <= 46 for w in widths), widths
+
+
+@cocotb.test()
+async def test_spi_target(dut):
+    """The chip as an SPI peripheral, clocked by a controller model on its input pins."""
+    host = await start(dut)
+    cfg = ShuttleConfig(in_base=2, out_base=0, set_base=0, set_count=1,
+                        autopull=True, autopush=True)
+    await load(host, 0, cfg, program("spi_target"))
+    reply = [0xC3, 0x5A, 0x01, 0xF0]
+    await host.write(0x008, reply)            # the reply is ready before the transaction
+    host.set_pins(1 << 3, 0b1110)             # CS high, SCK low
+    await host.write(0x001, 0x1)
+    await ClockCycles(dut.clk, 10)
+
+    half = 8                                  # SCK = clk / 16
+    sent = [0x3C, 0xA5, 0xFF, 0x00]
+    got = []
+    host.set_pins(0, 1 << 3)                  # CS low
+    await ClockCycles(dut.clk, half)
+    for byte in sent:
+        v = 0
+        for i in range(7, -1, -1):
+            host.set_pins(((byte >> i) & 1) << 2, 1 << 2)    # MOSI
+            await ClockCycles(dut.clk, half)
+            host.set_pins(1 << 1, 1 << 1)                    # SCK rises
+            v = (v << 1) | (int(dut.uo_out.value) & 1)       # sample MISO
+            await ClockCycles(dut.clk, half)
+            host.set_pins(0, 1 << 1)                         # SCK falls
+        got.append(v)
+    await ClockCycles(dut.clk, half)
+    host.set_pins(1 << 3, 1 << 3)             # CS high
+    await ClockCycles(dut.clk, 20)
+    assert got == reply, [hex(g) for g in got]
+    assert await host.read(0x008, 4) == sent
