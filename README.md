@@ -120,6 +120,7 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | CAN 2.0A transmit | `can_tx.weft` | A decoder written from ISO 11898 that checks stuff bits, CRC-15, delimiters and EOF |
 | Biphase mark code (S/PDIF and AES3 line code), loopback | `bmc_tx.weft`, `bmc_rx.weft` | The code exists only as a 4 state transmit rule written inside the test. The receiver is synthesised, the round trip is proved, and the chip sends and receives four bytes through the loopback |
 | WS2812 LED data | `ws2812.weft` | A pulse width decoder that checks each high time against the 2 and 7 tick targets |
+| Four at once | `uart_tx`, `spi_master`, `i2c_write`, `ws2812` | All four run together on the four shuttles from one instruction memory, each checked by its own peer model |
 
 The biphase mark row is the flexibility test in miniature. Weft was not designed with that code in mind, and adding it took a transmit rule of six lines ([docs/new_protocol.md](docs/new_protocol.md) walks through it). The toolchain derived the receiver, proved the pair correct, found R = 2, and the two generic programs ran it on the chip.
 

@@ -609,3 +609,66 @@ async def test_ps2_rx(dut):
     await send(0x32, good_parity=False)
     assert (await host.read(0x003))[0] & 1, "parity error should set IRQ 0"
     assert await host.read(0x008, 3) == [0x1C, 0xF0, 0x32]
+
+
+# ----------------------------------------------------------------------
+# Four protocols at once
+# ----------------------------------------------------------------------
+
+@cocotb.test()
+async def test_four_protocols_at_once(dut):
+    """UART, SPI, I2C and WS2812 run together on the four shuttles from one shared instruction memory.
+
+    Each one is checked by its own peer model while the others run, which shows that the shuttles do not disturb each other's timing or pins.
+    """
+    host = await start(dut)
+    uart = ShuttleConfig(out_base=1, set_base=1, set_count=1, out_right=True)
+    uart.set_ratio(2)
+    spi = ShuttleConfig(set_base=2, set_count=3, side_base=2, out_base=3, in_base=0)
+    spi.set_ratio(3)
+    i2c = ShuttleConfig(out_base=8, set_base=8, set_count=1, in_base=8, side_base=9)
+    i2c.set_ratio(4)
+    ws = ShuttleConfig(side_base=5, set_base=5, set_count=1, autopull=True, pull_thresh=8)
+    ws.set_ratio(CLK_HZ / 8e6)
+    await load(host, 0, uart, program("uart_tx", origin=0))
+    await load(host, 1, spi, program("spi_master", origin=8))
+    await load(host, 2, i2c, program("i2c_write", origin=21))
+    await load(host, 3, ws, program("ws2812", origin=40))
+
+    spi_target = SpiTarget(dut, sck=2, mosi=3, cs=4, miso=0, reply=[0x11, 0x22, 0x33],
+                           drive=host.set_pins, mode=0)
+    i2c_target = I2cTarget(dut, sda=0, scl=1, address=0x3C)
+    await host.write(0x001, 0xF)
+    await ClockCycles(dut.clk, 40)
+    cocotb.start_soon(spi_target.run())
+    cocotb.start_soon(i2c_target.run())
+
+    async def ws_pulses(n):
+        widths, high, prev = [], 0, 0
+        while len(widths) < n:
+            await RisingEdge(dut.clk)
+            v = (int(dut.uo_out.value) >> 5) & 1
+            if v:
+                high += 1
+            elif prev:
+                widths.append(high)
+                high = 0
+            prev = v
+        return widths
+
+    uart_data, spi_data, i2c_data, ws_data = [0x41, 0x42, 0x43], [0xDE, 0xAD, 0xBE], [0x3C << 1, 0x00, 0xAF], [0x0F, 0xF0]
+    uart_cap = cocotb.start_soon(capture_uart(dut, 1, 16, len(uart_data)))
+    ws_cap = cocotb.start_soon(ws_pulses(16))
+    await host.write(0x008, uart_data)
+    await host.write(0x009, spi_data)
+    await host.write(0x00A, i2c_data)
+    await host.write(0x00B, ws_data)
+    await ClockCycles(dut.clk, 1500)
+
+    assert await uart_cap == uart_data
+    assert spi_target.received == spi_data, spi_target.received
+    assert await host.read(0x009, 3) == [0x11, 0x22, 0x33]
+    assert i2c_target.transactions == [i2c_data], i2c_target.transactions
+    assert await host.read(0x00A, 3) == [0, 0, 0]
+    bits = [1 if w > 28 else 0 for w in await ws_cap]
+    assert [sum(bits[8 * i + k] << (7 - k) for k in range(8)) for i in range(2)] == ws_data
