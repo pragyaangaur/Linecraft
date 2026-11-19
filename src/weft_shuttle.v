@@ -140,6 +140,14 @@ module weft_shuttle (
         end
     endfunction
 
+    function [31:0] therm;             // low n bits set, n in 1..32, as compares
+        input [5:0] n;
+        integer j;
+        begin
+            for (j = 0; j < 32; j = j + 1) therm[j] = ({26'd0, n} > j);
+        end
+    endfunction
+
     function [5:0] count32;            // a 6 bit count field: 0 and 33 to 63 mean 32
         input [5:0] c;
         begin
@@ -325,18 +333,10 @@ module weft_shuttle (
 
     wire [5:0]  in_n     = in_fst ? 6'd1 : f_n;
     wire        in_do    = in_fst ? rx_e[5] : 1'b1;      // does a bit enter the ISR?
-    wire [31:0] in_d     = in_raw & mask_n(in_n);
-    wire [31:0] isr_sh   = in_right ? ((isr >> in_n) | (in_d << (6'd32 - in_n)))
-                                    : ((isr << in_n) | in_d);
-    wire [6:0]  isr_sum  = {1'b0, isr_cnt} + {1'b0, in_n};
-    wire [5:0]  isr_cnt_sh = (isr_sum > 7'd32) ? 6'd32 : isr_sum[5:0];
-    wire        in_push  = in_do & autopush & (isr_cnt_sh >= push_th);
-    wire [7:0]  in_byte  = in_right ? isr_sh[31:24] : isr_sh[7:0];
-    // feed order: right shift d[0], d[1] ...; left shift d[n-1], d[n-2] ...
-    wire [31:0] in_d_hi  = in_d << (6'd32 - in_n);
+    wire [31:0] in_d     = in_raw & therm(in_n);
 
     // ------------------------------------------------------------------
-    // OUT data path
+    // OUT data path, first half
     // ------------------------------------------------------------------
     wire        out_fst   = (f_a == 4'd7);
     wire        need_pull = autopull & (osr_left == 6'd0) & ~(out_fst & fpend);
@@ -347,9 +347,36 @@ module weft_shuttle (
     wire [6:0]  tx_e      = tx_b ? fe1 : fe0;            // transmit line coder step
     wire [5:0]  out_n     = out_fst ? 6'd1 : f_n;
     wire        out_do    = out_fst ? tx_e[5] : 1'b1;    // is a data bit consumed?
-    wire [31:0] out_d     = out_right ? (osr_src & mask_n(out_n))
-                                      : (osr_src >> (6'd32 - out_n));
-    wire [31:0] osr_sh    = out_right ? (osr_src >> out_n) : (osr_src << out_n);
+
+    // ------------------------------------------------------------------
+    // Two shared barrel shifters. IN and OUT never run in the same cycle,
+    // so one shifter moves the ISR or the OSR by n, and the other lines
+    // data up by 32 - n. A left shift is a right shift between two bit
+    // reversals, which are only wiring plus a row of muxes.
+    // ------------------------------------------------------------------
+    wire        is_out   = (op == OP_OUT);
+    wire [5:0]  sh_n     = is_out ? out_n : in_n;
+    wire [5:0]  sh_k     = 6'd32 - sh_n;                 // 0 when n = 32
+
+    wire        s1_left  = is_out ? ~out_right : ~in_right;
+    wire [31:0] s1_a     = is_out ? osr_src : isr;
+    wire [31:0] s1_b     = (s1_left ? rev32(s1_a) : s1_a) >> sh_n;
+    wire [31:0] s1       = s1_left ? rev32(s1_b) : s1_b;  // isr or osr shifted by n
+
+    wire [31:0] s2_a     = is_out ? osr_src : in_d;
+    wire [31:0] s2_b     = (is_out ? s2_a : rev32(s2_a)) >> sh_k;
+    wire [31:0] s2       = is_out ? s2_b : rev32(s2_b);   // osr >> (32-n) or in_d << (32-n)
+
+    wire [31:0] isr_sh   = in_right ? (s1 | s2) : (s1 | in_d);
+    wire [6:0]  isr_sum  = {1'b0, isr_cnt} + {1'b0, in_n};
+    wire [5:0]  isr_cnt_sh = (isr_sum > 7'd32) ? 6'd32 : isr_sum[5:0];
+    wire        in_push  = in_do & autopush & (isr_cnt_sh >= push_th);
+    wire [7:0]  in_byte  = in_right ? isr_sh[31:24] : isr_sh[7:0];
+    // feed order: right shift d[0], d[1] ...; left shift d[n-1], d[n-2] ...
+    wire [31:0] in_d_hi  = s2;
+
+    wire [31:0] out_d     = out_right ? (osr_src & therm(out_n)) : s2;
+    wire [31:0] osr_sh    = s1;
     wire [5:0]  left_sh   = (left_src > out_n) ? (left_src - out_n) : 6'd0;
 
     // ------------------------------------------------------------------
@@ -413,6 +440,14 @@ module weft_shuttle (
             pin_write = {m, v};
         end
     endfunction
+
+    // One shared main pin write (OUT or SET to PINS or PINDIRS). Side-set
+    // has its own, because it lands in the same cycle as the main write.
+    wire [5:0]  set_n   = (set_count > 4'd8) ? 6'd8 : {2'd0, set_count};
+    wire [31:0] mw      = pin_write(is_out ? out_d : {24'd0, instr[7:0]}, is_out ? out_n : set_n);
+    wire [3:0]  mw_base = is_out ? out_base : set_base;
+    wire [15:0] mw_m    = rotl16(mw[31:16], mw_base);
+    wire [15:0] mw_v    = rotl16(mw[15:0], mw_base);
 
     // ------------------------------------------------------------------
     // Next state
@@ -499,20 +534,10 @@ module weft_shuttle (
                         osr_n = osr_sh;
                         osr_left_n = left_sh;
                         case (f_a)
-                            4'd0: begin
-                                pw = pin_write(out_d, out_n);
-                                wm = rotl16(pw[31:16], out_base);
-                                wv = rotl16(pw[15:0], out_base);
-                                pv_n = (pv & ~wm) | (wv & wm);
-                            end
+                            4'd0: pv_n = (pv & ~mw_m) | (mw_v & mw_m);
                             4'd1: x_n = out_d[15:0];
                             4'd2: y_n = out_d[15:0];
-                            4'd4: begin
-                                pw = pin_write(out_d, out_n);
-                                wm = rotl16(pw[31:16], out_base);
-                                wv = rotl16(pw[15:0], out_base);
-                                pe_n = (pe & ~wm) | (wv & wm);
-                            end
+                            4'd4: pe_n = (pe & ~mw_m) | (mw_v & mw_m);
                             4'd5: begin jump = 1'b1; jump_to = out_d[5:0]; end
                             4'd6: begin isr_n = out_d; isr_cnt_n = out_n; end
                             default: ;
@@ -565,22 +590,10 @@ module weft_shuttle (
                 end
                 OP_SET: begin
                     case (f_a)
-                        4'd0: begin
-                            pw = pin_write({24'd0, instr[7:0]},
-                                           (set_count > 4'd8) ? 6'd8 : {2'd0, set_count});
-                            wm = rotl16(pw[31:16], set_base);
-                            wv = rotl16(pw[15:0], set_base);
-                            pv_n = (pv & ~wm) | (wv & wm);
-                        end
+                        4'd0: pv_n = (pv & ~mw_m) | (mw_v & mw_m);
                         4'd1: x_n = {8'd0, instr[7:0]};
                         4'd2: y_n = {8'd0, instr[7:0]};
-                        4'd4: begin
-                            pw = pin_write({24'd0, instr[7:0]},
-                                           (set_count > 4'd8) ? 6'd8 : {2'd0, set_count});
-                            wm = rotl16(pw[31:16], set_base);
-                            wv = rotl16(pw[15:0], set_base);
-                            pe_n = (pe & ~wm) | (wv & wm);
-                        end
+                        4'd4: pe_n = (pe & ~mw_m) | (mw_v & mw_m);
                         default: ;
                     endcase
                 end
