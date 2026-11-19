@@ -126,7 +126,12 @@ Two separate implementations were written from [docs/spec.md](docs/spec.md): the
 - **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against peer models and decoders in [test/peers.py](test/peers.py) that share no code with the Weft toolchain.
 - **Model and toolchain tests** ([weft/tests](weft/tests)), 169 of them. They cover the assembler round trip, every catalogue CRC (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8, CRC-7, CRC-16/CCITT) sent bit-exact on the wire through `MOV OSR, CRC`, and the line code analyses.
 
-Formal proofs are not done yet. The design has not run on an FPGA either.
+- **Formal proofs** ([formal/run.sh](formal/run.sh)), which hold on every cycle of every run and take a few seconds.
+  - The fractional divider has zero cumulative drift. With the configuration held, 256 times the elapsed cycles plus the accumulator always equals the sum of 256N + DIV_FRAC over the ticks so far, so tick k falls exactly at floor(k(N + DIV_FRAC/256)) cycles. This is proved by k-induction with z3 for every DIV_INT and DIV_FRAC.
+  - A whole shuttle keeps its invariants for every program, configuration and input: the FIFOs never overflow or underflow and their pointers match their counts, the shift counters stay within 32, at most 8 CRC bits wait, an instruction only runs on a tick with no delay left, and a disabled shuttle that is not restarted keeps its program state. These are proved by temporal induction with Yosys.
+  - A planted false assertion (a TX FIFO can never be full) must be found by the same setup, and it is found at depth 5. This shows the proofs are not vacuous.
+
+The design has not run on an FPGA.
 
 ## Building and testing
 
