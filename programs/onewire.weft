@@ -1,0 +1,65 @@
+; 1-Wire controller: reset, presence detect, and byte transfers with a CRC
+; check at the end. One tick is 1 us, so DIV = clk / 1 MHz.
+; The host pushes a command byte (for example 0x33, READ ROM) and then one
+; byte per byte to read (0xFF reads; any other value is written). Each time
+; slot writes one bit and reads the line back, LSB first, so a read is a
+; write of 1. The shuttle pushes the presence byte (0x00 when a device
+; answered), the echo of the command, and every byte after it. The CRC
+; unit covers the bytes after the command; when the host's bytes run out
+; the shuttle sets IRQ 0 if the CRC residue is right and IRQ 1 if not.
+; Pins: DQ = SET_BASE = OUT_BASE = IN_BASE, a bidirectional pin with an
+; external pull-up; the pin value stays 0 and the direction is driven.
+; Config: SET_COUNT = 1, OUT_RIGHT = 1, IN_RIGHT = 1, CRC_SRC = receive,
+; CRC-8/MAXIM settings (width 8, polynomial 0x31, residue 0).
+.program onewire
+    set pins, 0
+    set pindirs, 0
+.wrap_target
+top:
+    pull block                      ; the command byte starts a transaction
+    mov osr, ~osr                   ; a 1 bit releases the line
+    set pindirs, 1       [31]       ; reset pulse, 480 us in all
+    set x, 13
+rst:
+    jmp x-- rst          [31]
+    set pindirs, 0       [31]       ; release and wait for the presence pulse
+    nop                  [31]
+    nop                  [4]
+    in pins, 1                      ; about 70 us after release
+    push block                      ; 0x00 means a device is present
+    set x, 12
+wait_rest:
+    jmp x-- wait_rest    [31]
+    set x, 7
+cbit:
+    set pindirs, 1       [5]        ; slot starts: 6 us low
+    out pindirs, 1       [7]        ; release for a 1, hold low for a 0
+    in pins, 1           [31]       ; sample at 14 us
+    nop                  [12]
+    set pindirs, 0       [9]        ; release at 59 us, recover
+    jmp x-- cbit
+    push block                      ; echo of the command
+    ctl crc                         ; the CRC covers what follows
+next:
+    jmp txne more
+    jmp crcok good
+    irq set 1
+    jmp next_txn
+good:
+    irq set 0
+next_txn:
+    jmp top
+more:
+    pull block
+    mov osr, ~osr
+    set x, 7
+dbit:
+    set pindirs, 1       [5]
+    out pindirs, 1       [7]
+    in pins, 1           [31]
+    nop                  [12]
+    set pindirs, 0       [9]
+    jmp x-- dbit
+    push block
+    jmp next
+.wrap

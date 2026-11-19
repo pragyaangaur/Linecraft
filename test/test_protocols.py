@@ -746,3 +746,50 @@ async def test_i2c_target(dut):
     assert other is False
     assert await host.read(0x008, 2) == [0x10, 0x81]
     assert ((await host.read(0x006))[0] & 7) == 0
+
+
+# ----------------------------------------------------------------------
+# 1-Wire
+# ----------------------------------------------------------------------
+
+@cocotb.test()
+@cocotb.parametrize(corrupt=[False, True])
+async def test_onewire_read_rom(dut, corrupt):
+    """READ ROM from a device model; the chip checks the ROM's Maxim CRC-8 with its CRC unit."""
+    from peers import OneWireDevice, crc8_maxim
+    from weft.crc import CrcSpec
+    host = await start(dut)
+    us = 4                                             # clock cycles per microsecond in this test
+    cfg = ShuttleConfig(set_base=8, set_count=1, out_base=8, in_base=8, out_right=True, in_right=True)
+    cfg.set_ratio(us)
+    cfg.use_crc(weft_settings(CrcSpec("CRC-8/MAXIM-DOW", 8, 0x31, 0, True, True, 0, 0xA1, 0)), CRC_RX)
+    await load(host, 0, cfg, program("onewire"))
+    body = [0x28, 0xFF, 0x4C, 0x92, 0x61, 0x16, 0x04]  # family code 0x28 and a serial number
+    rom = body + [crc8_maxim(body) ^ (0x01 if corrupt else 0)]
+    device = OneWireDevice(dut, pin=0, us=us, rom=rom)
+    cocotb.start_soon(device.run())
+    await host.write(0x001, 0x1)
+    got = []
+
+    async def drain():
+        level = (await host.read(0x006))[0] & 7
+        if level:
+            got.extend(await host.read(0x008, level))
+
+    # Keep the read requests ahead of the bus: a transaction ends when the
+    # TX FIFO runs dry, so the host tops it up while it drains the replies.
+    await host.write(0x008, [0x33, 0xFF, 0xFF, 0xFF])
+    pushed = 3
+    while len(got) < 10:
+        await ClockCycles(dut.clk, 100 * us)
+        while pushed < 8 and (await host.read(0x005))[0] & 1:
+            await host.write(0x008, 0xFF)
+            pushed += 1
+        await drain()
+    await ClockCycles(dut.clk, 200 * us)
+    assert device.events[:2] == ["RESET", "CMD 0x33"], device.events
+    assert got[0] == 0x00, f"presence byte {got[0]:#x}"
+    assert got[1] == 0x33, "the command is read back"
+    assert got[2:10] == rom, [hex(g) for g in got[2:10]]
+    irq = (await host.read(0x003))[0]
+    assert irq & 3 == (2 if corrupt else 1), f"IRQ {irq:#x}"

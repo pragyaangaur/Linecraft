@@ -297,3 +297,67 @@ class JtagTap:
                 self.out = self.shift & 1 if self.state in ("SHDR", "SHIR") else 0
                 self.drive(self.out << self.tdo, 1 << self.tdo)
             prev = tck
+
+
+def crc8_maxim(data):
+    """CRC-8/MAXIM-DOW (Dallas 1-Wire): reflected polynomial 0x8C, init 0."""
+    crc = 0
+    for b in data:
+        crc ^= b
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0x8C if crc & 1 else crc >> 1
+    return crc
+
+
+class OneWireDevice:
+    """A 1-Wire device from the Maxim timing rules that answers READ ROM (0x33).
+
+    `us` is the number of clock cycles per microsecond. The device sees the resolved open drain line on uio pin `pin` and pulls it low itself for presence pulses and for 0 bits it sends.
+    """
+
+    def __init__(self, dut, pin, us, rom):
+        self.dut, self.pin, self.us, self.rom = dut, pin, us, list(rom)
+        self.events = []
+
+    async def run(self):
+        us, pin = self.us, self.pin
+        low_for, prev, pull_until, t = 0, 1, -1, 0
+        mode, bits, cmd, out_bits, sample_at = "idle", 0, 0, [], -1
+        presence_at = -1
+        while True:
+            await RisingEdge(self.dut.clk)
+            t += 1
+            oe, out = int(self.dut.uio_oe.value), int(self.dut.uio_out.value)
+            chip_low = (oe >> pin) & 1 and not (out >> pin) & 1
+            dev_low = t < pull_until
+            line = 0 if chip_low or dev_low else 1
+            v = int(self.dut.uio_in.value)
+            self.dut.uio_in.value = (v & ~(1 << pin)) | (line << pin)
+            if t == presence_at:
+                pull_until = t + 120 * us          # presence pulse
+            if line == 0:
+                low_for += 1
+            if prev == 1 and line == 0 and not dev_low:
+                slot_start = t                     # the controller started a slot
+                sample_at = t + 30 * us
+                if mode == "tx" and out_bits:
+                    bit = out_bits.pop(0)
+                    if bit == 0:
+                        pull_until = t + 30 * us
+            if prev == 0 and line == 1:
+                if low_for >= 400 * us:
+                    self.events.append("RESET")
+                    mode, bits, cmd = "cmd", 0, 0
+                    presence_at = t + 30 * us
+                low_for = 0
+            if t == sample_at and mode == "cmd":
+                cmd |= line << bits
+                bits += 1
+                if bits == 8:
+                    self.events.append(f"CMD {cmd:#04x}")
+                    if cmd == 0x33:
+                        mode = "tx"
+                        out_bits = [(b >> k) & 1 for b in self.rom for k in range(8)]
+                    else:
+                        mode = "idle"
+            prev = line
