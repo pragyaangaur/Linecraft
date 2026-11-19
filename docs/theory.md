@@ -1,6 +1,6 @@
 # The mathematics behind Weft
 
-This page gives the arguments behind three claims in the README: the clock tolerance bound for a resynchronising receiver, receiver synthesis, and zero drift in the fractional divider. The code that checks each claim is named in its section.
+This page gives the arguments behind the mathematical claims in the README: the clock tolerance bound for a resynchronising receiver, receiver synthesis, address matching with a CRC, and zero drift in the fractional divider. The code that checks each claim is named in its section.
 
 ## 1. Line coder tables as automata
 
