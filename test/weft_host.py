@@ -37,7 +37,9 @@ class Host:
             await ClockCycles(self.dut.clk, self.half)
             self._set(SCK, 1)
             # sample MISO at the rising edge, as a mode 0 host does
-            got = (got << 1) | ((int(self.dut.uo_out.value) >> MISO) & 1)
+            # Read only MISO: other outputs may be X in a gate level run
+            # when a shuttle with no program is enabled.
+            got = (got << 1) | int(self.dut.uo_out.value[MISO])
             await ClockCycles(self.dut.clk, self.half)
             self._set(SCK, 0)
         return got
@@ -83,6 +85,10 @@ class Host:
 
 async def reset(dut):
     dut.ena.value = 1
+    # Drive every input, with CSn high, so that no X reaches the chip after
+    # reset. RTL simulation would hide an X here, but a gate level netlist
+    # carries it into the host port.
+    dut.ui_in.value = 1 << CSN
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 5)

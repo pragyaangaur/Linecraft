@@ -61,7 +61,7 @@ With `DIV_INT = 1` and `DIV_FRAC = 0` the shuttle ticks every cycle. The average
 | `pv`, `pe` | 16 each | 0 (kept on restart) | Output values and enables |
 | TX FIFO, RX FIFO | 4 entries of 8 bits each | empty | Host to shuttle and shuttle to host |
 
-Configuration does not load `pc`, `fst` or `crc` by itself, so the host should write `RESTART` after configuring a shuttle. A restart (from the host `RESTART` register) puts every item above into its restart value, empties both FIFOs, and resets the divider (`cnt = 0`, `acc = 0`). It keeps `pv` and `pe` so that pins do not glitch. Reset (`rst_n`) does all of that and also clears `pv` and `pe`.
+The instruction memory is not reset, so a shuttle must be given a program before it is enabled. Configuration does not load `pc`, `fst` or `crc` by itself, so the host should write `RESTART` after configuring a shuttle. A restart (from the host `RESTART` register) puts every item above into its restart value, empties both FIFOs, and resets the divider (`cnt = 0`, `acc = 0`). It keeps `pv` and `pe` so that pins do not glitch. Reset (`rst_n`) does all of that and also clears `pv` and `pe`.
 
 ## Execution
 
