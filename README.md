@@ -1,4 +1,4 @@
-# Loom
+# Weft
 
 A small chip that learns new wire protocols from software, built for the Jane Street protocol emulator ASIC competition.
 
