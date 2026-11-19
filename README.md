@@ -125,6 +125,8 @@ Every program is in [programs/](programs), and every test drives the chip only t
 
 The biphase mark row is the flexibility test in miniature. Weft was not designed with that code in mind, and adding it took a transmit rule of six lines ([docs/new_protocol.md](docs/new_protocol.md) walks through it). The toolchain derived the receiver, proved the pair correct, found R = 2, and the two generic programs ran it on the chip.
 
+![A USB low speed packet from the cycle accurate model](docs/img/usb_waveform.svg)
+
 The USB and CAN transmitters use the same two blocks with a different table and polynomial. Both keep a fixed number of ticks per symbol right up to the last stuffed bit by testing the `MORE` jump condition, which is true while an `OUT` would find data in the OSR, in the FIFO or pending in the line coder.
 
 ## Verification
