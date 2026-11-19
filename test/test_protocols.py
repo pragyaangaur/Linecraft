@@ -177,7 +177,7 @@ def usb_tx_config(rate_scale=1.0):
     return cfg
 
 
-def usb_rx_config(sync_phase=5):
+def usb_rx_config(sync_phase=7):
     cfg = ShuttleConfig(in_base=8, in_right=True, autopush=True, push_thresh=8,
                         sync_en=True, sync_pin=8, sync_phase=sync_phase,
                         match_mask=0x0300, match_val=0)
