@@ -121,7 +121,7 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | Biphase mark code (S/PDIF and AES3 line code), loopback | `bmc_tx.weft`, `bmc_rx.weft` | The code exists only as a 4 state transmit rule written inside the test. The receiver is synthesised, the round trip is proved, and the chip sends and receives four bytes through the loopback |
 | WS2812 LED data | `ws2812.weft` | A pulse width decoder that checks each high time against the 2 and 7 tick targets |
 
-The biphase mark row is the flexibility test in miniature. Weft was not designed with that code in mind, and adding it took a transmit rule of six lines. The toolchain derived the receiver, proved the pair correct, found R = 2, and the two generic programs ran it on the chip.
+The biphase mark row is the flexibility test in miniature. Weft was not designed with that code in mind, and adding it took a transmit rule of six lines ([docs/new_protocol.md](docs/new_protocol.md) walks through it). The toolchain derived the receiver, proved the pair correct, found R = 2, and the two generic programs ran it on the chip.
 
 The USB and CAN transmitters use the same two blocks with a different table and polynomial. Both keep a fixed number of ticks per symbol right up to the last stuffed bit by testing the `MORE` jump condition, which is true while an `OUT` would find data in the OSR, in the FIFO or pending in the line coder.
 
