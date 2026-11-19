@@ -4,7 +4,7 @@ This file is the reference for the chip. The Verilog in `src/` and the Python mo
 
 ## Big picture
 
-Weft has four identical engines called shuttles. Each shuttle is a small processor that runs a program from a shared instruction memory and moves bits between pins and FIFOs with exact cycle timing. A host microcontroller loads programs and talks to the shuttles over an SPI port.
+Weft has four identical engines called shuttles. Each shuttle is a small processor that runs a program from a shared instruction memory and moves bits between pins and FIFOs with exact cycle timing. A host microcontroller loads programs and talks to the shuttles over an SPI port. The number of shuttles is the parameter `NS` in `src/project.v`, 4 by default. A build with fewer keeps the same register map: the host can still address a missing shuttle, its writes do nothing, its TX FIFO reads as full and its RX FIFO as empty.
 
 Every shuttle also has two pieces of programmable hardware that sit between the pins and the shift registers.
 
