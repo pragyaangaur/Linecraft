@@ -1,0 +1,12 @@
+; Receiver for a code with a transition at the start of every bit, one
+; tick per half-bit symbol, resynchronised on every edge of the line.
+; The first edge leaves idle, and that first symbol is known, so the line
+; coder starts in the state after it (FST_INIT is set by the host).
+; Pins: IN_BASE = SYNC_PIN = the line. Config: IN_RIGHT = 1, AUTOPUSH = 1
+; with PUSH_THRESH = 8, SYNC_EN = 1 with SYNC_PHASE near half a symbol.
+.program bmc_rx
+    wait 1 pin 0                    ; see the idle level first
+    wait 0 pin 0                    ; then the first edge
+.wrap_target
+    in fst, 1
+.wrap

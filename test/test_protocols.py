@@ -472,3 +472,61 @@ async def test_i2c_read(dut):
     assert got == [0, 0x5A, 0x00, 0xFF], [hex(g) for g in got]
     assert target.read_acks == [0, 0, 1], target.read_acks
     assert target.events == ["START", "STOP"], target.events
+
+
+# ----------------------------------------------------------------------
+# A line code the chip was not designed for
+# ----------------------------------------------------------------------
+
+@cocotb.test()
+async def test_biphase_mark_from_a_transmit_rule(dut):
+    """Biphase mark code, defined here as a 4 state transmit rule in a few lines.
+
+    weft.synth derives the receiver, weft.analysis proves the round trip and the run length, and the chip runs the pair in loopback with edge resync.
+    """
+    from weft.linecodes import Machine, Step
+    from weft.synth import synthesize_rx
+    from weft.analysis import check_round_trip, max_run_length
+
+    # State (level, half): every bit starts with a transition, and a 1 has a
+    # second transition in the middle. The data bit is used on the second half.
+    states = [(lvl, half) for lvl in (0, 1) for half in (0, 1)]
+
+    def tx_step(state, b):
+        lvl, half = state
+        if half == 0:
+            return Step((1 - lvl, 1), 1 - lvl, xfer=False)
+        return Step((lvl ^ b, 0), lvl ^ b)
+
+    tx = Machine(states, tx_step)
+    tx_table, tx_init = tx.table(), tx.index((1, 0))
+    rx = synthesize_rx(tx_table, tx_init)
+    assert check_round_trip(tx_table, tx_init, rx.table, rx.init).ok
+    assert max_run_length(tx_table, tx_init) == 2
+    rx_after_first = rx.table[2 * rx.init + 0] & 0xF       # the first symbol is a 0
+
+    host = await start(dut)
+    sym = 16                                               # cycles per half-bit symbol
+    txc = ShuttleConfig(out_base=9, set_base=9, set_count=1, out_right=True, autopull=True,
+                        pull_thresh=8, fst_table=tx_table, fst_init=tx_init)
+    txc.set_ratio(sym)
+    rxc = ShuttleConfig(in_base=9, in_right=True, autopush=True, push_thresh=8, sync_en=True,
+                        sync_pin=9, sync_phase=sym // 2 - 3, fst_table=rx.table, fst_init=rx_after_first)
+    rxc.set_ratio(sym)
+    await load(host, 0, txc, program("bmc_tx"))
+    await load(host, 1, rxc, program("bmc_rx", origin=16))
+    await host.write(0x001, 0x3)
+
+    async def loopback(n):
+        for _ in range(n):
+            await RisingEdge(dut.clk)
+            oe, out = int(dut.uio_oe.value), int(dut.uio_out.value)
+            line = ((out >> 1) & 1) if (oe >> 1) & 1 else 1
+            dut.uio_in.value = line << 1
+
+    data = [0x00, 0xFF, 0xA5, 0x3C]
+    run = cocotb.start_soon(loopback(1500))
+    await host.write(0x008, data)
+    await run
+    got = await host.read(0x009, 4)
+    assert got == data, [hex(g) for g in got]

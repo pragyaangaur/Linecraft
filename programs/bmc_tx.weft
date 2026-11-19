@@ -1,0 +1,14 @@
+; Biphase mark code transmitter (the line code of S/PDIF and AES3).
+; One instruction and one tick per half-bit symbol. The line coder table
+; holds the code, so this program is the same for any code that needs
+; only data from the FIFO. The first PULL waits for data so the line does
+; not move before there is something to send.
+; Pins: OUT_BASE = SET_BASE = the line. Config: SET_COUNT = 1, OUT_RIGHT = 1,
+; AUTOPULL = 1 with PULL_THRESH = 8, line coder from the transmit rule.
+.program bmc_tx
+    set pins, 1
+    set pindirs, 1
+    pull block
+.wrap_target
+    out fst, 1
+.wrap
