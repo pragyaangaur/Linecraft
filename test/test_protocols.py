@@ -242,3 +242,47 @@ async def test_usb_ls_loopback(dut):
     crc = crc16_usb(payload[1:])
     assert got == [0x80] + payload + [crc & 0xFF, crc >> 8], [hex(b) for b in got]
     assert irq & 1 and not irq & 2, f"IRQ {irq:#x}: CRC check failed"
+
+
+# ----------------------------------------------------------------------
+# CAN
+# ----------------------------------------------------------------------
+
+def can_host_bytes(ident, data):
+    """Pack the five pad bits and the frame up to the end of the data into bytes, MSB first."""
+    bits = [1] * 5 + [0] + [(ident >> (10 - k)) & 1 for k in range(11)] + [0, 0, 0]
+    bits += [(len(data) >> (3 - k)) & 1 for k in range(4)]
+    bits += [(d >> (7 - k)) & 1 for d in data for k in range(8)]
+    assert len(bits) % 8 == 0
+    return [sum(bits[8 * i + k] << (7 - k) for k in range(8)) for i in range(len(bits) // 8)]
+
+
+@cocotb.test()
+async def test_can_tx(dut):
+    """A CAN data frame with stuffing and CRC-15, checked by a decoder written from ISO 11898."""
+    from peers import can_decode
+    host = await start(dut)
+    cfg = ShuttleConfig(out_base=1, set_base=1, set_count=1, autopull=True, pull_thresh=8)
+    cfg.set_ratio(8)                                   # 32 cycles per bit
+    cfg.use_line_code(linecodes.can(), "tx")
+    cfg.use_crc(weft_settings(CATALOGUE["CRC-15/CAN"]), CRC_TX)
+    await load(host, 0, cfg, program("can_tx"))
+    await host.write(0x001, 0x1)
+    await ClockCycles(dut.clk, 20)
+    # Long runs force stuff bits. The frame (5 bytes) fits in the OSR and the
+    # FIFO, so the host can push it in one burst and never falls behind.
+    ident, data = 0x0F0, [0x00, 0xFF]
+    frame = can_host_bytes(ident, data)
+
+    async def record(n):
+        out = []
+        for _ in range(n):
+            await RisingEdge(dut.clk)
+            out.append((int(dut.uo_out.value) >> 1) & 1)
+        return out
+
+    rec = cocotb.start_soon(record(3500))
+    await host.write(0x008, frame)
+    samples = await rec
+    got_id, got_data = can_decode(samples, 32)
+    assert (got_id, got_data) == (ident, data), (hex(got_id), got_data)

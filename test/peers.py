@@ -149,3 +149,67 @@ def usb_ls_decode(samples, cycles_per_bit):
     data = [sum(bits[8 * i + j] << j for j in range(8)) for i in range(nbytes)]
     assert data[0] == 0x80, f"bad SYNC {data[0]:#x}"
     return data[1:], se0_bits, len(bits) % 8
+
+
+def crc15_can(bits):
+    """CRC-15/CAN over a list of bits, MSB first: poly 0x4599, init 0."""
+    crc = 0
+    for b in bits:
+        fb = ((crc >> 14) & 1) ^ b
+        crc = (crc << 1) & 0x7FFF
+        if fb:
+            crc ^= 0x4599
+    return crc
+
+
+def can_decode(samples, cycles_per_bit):
+    """Decode one CAN 2.0A data frame from a list of line levels, one per clock.
+
+    It finds SOF (the first dominant bit), samples each bit in its middle, removes stuff bits (and checks that each one is the complement of the five before it), and checks the CRC, the delimiters and EOF. It returns (id, data).
+    """
+    start = samples.index(0)
+    t = start + cycles_per_bit / 2
+    raw = []
+    while int(t) < len(samples):
+        raw.append(samples[int(t)])
+        t += cycles_per_bit
+    bits, i, run, last = [], 0, 0, None
+
+    def take():
+        nonlocal i, run, last
+        b = raw[i]
+        i += 1
+        run = run + 1 if b == last else 1
+        last = b
+        if run == 5:
+            stuff = raw[i]
+            i += 1
+            assert stuff != b, f"bad stuff bit at raw bit {i - 1}"
+            run, last = 1, stuff
+        return b
+
+    sof = take()
+    assert sof == 0
+    ident = 0
+    for _ in range(11):
+        ident = (ident << 1) | take()
+    rtr, ide, r0 = take(), take(), take()
+    assert (rtr, ide, r0) == (0, 0, 0)
+    dlc = 0
+    for _ in range(4):
+        dlc = (dlc << 1) | take()
+    data = []
+    for _ in range(dlc):
+        v = 0
+        for _ in range(8):
+            v = (v << 1) | take()
+        data.append(v)
+    covered = [0] + [(ident >> (10 - k)) & 1 for k in range(11)] + [0, 0, 0] \
+        + [(dlc >> (3 - k)) & 1 for k in range(4)] + [(d >> (7 - k)) & 1 for d in data for k in range(8)]
+    crc = 0
+    for _ in range(15):
+        crc = (crc << 1) | take()
+    assert crc == crc15_can(covered), f"CRC {crc:#x} != {crc15_can(covered):#x}"
+    tail = raw[i:i + 10]
+    assert tail == [1] * 10, f"delimiters and EOF should be recessive, got {tail}"
+    return ident, data

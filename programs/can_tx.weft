@@ -1,0 +1,41 @@
+; CAN 2.0A data frame transmitter with bit stuffing and CRC-15.
+; One bit is 4 ticks. The host pushes 3 + DLC bytes, MSB first: five
+; recessive pad bits, then SOF, the 11 bit ID, RTR, IDE, r0, the 4 bit DLC
+; and the data bytes. The pad makes the frame start on a byte boundary;
+; it is sent before the line coder starts, so it is plain idle level.
+; The line coder (can) inserts stuff bits from SOF to the end of the CRC,
+; the CRC unit computes CRC-15 over SOF to the end of the data, and the
+; program then sends the delimiters and EOF, all recessive.
+; Pins: TX = OUT_BASE = SET_BASE.
+; Config: SET_COUNT = 1, OUT_RIGHT = 0, AUTOPULL = 1 with PULL_THRESH = 8,
+; line coder can with FST_INIT = start, CRC-15/CAN on transmitted bits.
+.program can_tx
+    set pins, 1                     ; recessive
+    set pindirs, 1
+.wrap_target
+    set x, 3
+pad:
+    out pins, 1          [1]        ; pad bits. The first OUT waits for the host
+    jmp x-- pad          [1]
+    out pins, 1          [1]        ; fifth pad bit
+    ctl crc fst          [1]        ; stuffing and CRC start at SOF
+data:
+    out fst, 1
+    jmp more dcont       [1]
+    mov osr, crc
+tail:
+    out fst, 1                      ; CRC bits, still stuffed
+    jmp more tcont       [1]
+    nop
+    set pins, 1          [3]        ; CRC delimiter
+    set pins, 1          [3]        ; ACK slot, left recessive for a receiver
+    set pins, 1          [3]        ; ACK delimiter
+    set x, 6
+eof:
+    set pins, 1          [2]
+    jmp x-- eof                     ; seven EOF bits
+.wrap
+dcont:
+    jmp data
+tcont:
+    jmp tail
