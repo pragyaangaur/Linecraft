@@ -1,0 +1,19 @@
+; WS2812 addressable LED driver. One bit is 10 ticks, so DIV = clk / 8 MHz
+; for the usual 800 kbit/s. A 1 is high for 7 ticks and low for 3, and a
+; 0 is high for 2 ticks and low for 8. The host pushes G, R, B bytes for
+; each LED. When the FIFO runs dry the line stays low, which latches the
+; colours once the gap passes the LED's reset time.
+; Pins: DATA = SIDE_BASE = SET_BASE.
+; Config: side-set 1 pin, SET_COUNT = 1, OUT_RIGHT = 0, AUTOPULL = 1 with
+; PULL_THRESH = 8.
+.program ws2812
+.side_set 1
+    set pindirs, 1      side 0
+.wrap_target
+bit:
+    out x, 1            side 0 [2]  ; low tail of the previous bit
+    jmp !x zero         side 1 [1]  ; every bit starts high
+    jmp bit             side 1 [4]  ; a 1 stays high
+zero:
+    nop                 side 0 [4]  ; a 0 goes low early
+.wrap

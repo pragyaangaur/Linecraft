@@ -301,3 +301,40 @@ async def test_can_tx(dut):
     samples = await rec
     got_id, got_data = can_decode(samples, 32)
     assert (got_id, got_data) == (ident, data), (hex(got_id), got_data)
+
+
+# ----------------------------------------------------------------------
+# WS2812
+# ----------------------------------------------------------------------
+
+@cocotb.test()
+async def test_ws2812(dut):
+    """Pulse widths on the data pin decode to the pushed colour bytes."""
+    host = await start(dut)
+    cfg = ShuttleConfig(side_base=5, set_base=5, set_count=1, autopull=True, pull_thresh=8)
+    cfg.set_ratio(CLK_HZ / 8e6)                         # 6.25 cycles per tick
+    await load(host, 0, cfg, program("ws2812"))
+    await host.write(0x001, 0x1)
+    colours = [0x12, 0xFF, 0x00, 0xA5]
+
+    async def pulses(n_bits):
+        widths, high, prev = [], 0, 0
+        while len(widths) < n_bits:
+            await RisingEdge(dut.clk)
+            v = (int(dut.uo_out.value) >> 5) & 1
+            if v:
+                high += 1
+            elif prev:
+                widths.append(high)
+                high = 0
+            prev = v
+        return widths
+
+    cap = cocotb.start_soon(pulses(8 * len(colours)))
+    await host.write(0x008, colours)
+    widths = await cap
+    # 2 ticks is 12.5 cycles and 7 ticks is 43.75 cycles; split at the middle.
+    bits = [1 if w > 28 else 0 for w in widths]
+    got = [sum(bits[8 * i + k] << (7 - k) for k in range(8)) for i in range(len(colours))]
+    assert got == colours, [hex(g) for g in got]
+    assert all(11 <= w <= 14 or 42 <= w <= 46 for w in widths), widths

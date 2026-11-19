@@ -97,6 +97,7 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | USB low speed transmit | `usb_ls_tx.weft` | A decoder written from the USB specification that undoes NRZI and stuffing and checks the CRC16 |
 | USB low speed receive | `usb_ls_rx.weft` | Loopback from the transmitter, with clock recovery, destuffing and a CRC16 residue check on the chip |
 | CAN 2.0A transmit | `can_tx.weft` | A decoder written from ISO 11898 that checks stuff bits, CRC-15, delimiters and EOF |
+| WS2812 LED data | `ws2812.weft` | A pulse width decoder that checks each high time against the 2 and 7 tick targets |
 
 The USB and CAN transmitters use the same two blocks with a different table and polynomial. Both keep a fixed number of ticks per symbol right up to the last stuffed bit by testing the `MORE` jump condition, which is true while an `OUT` would find data in the OSR, in the FIFO or pending in the line coder.
 
