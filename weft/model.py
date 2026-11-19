@@ -73,6 +73,12 @@ def crc_advance(crc, bits, width, poly):
     return crc
 
 
+def _count(field):
+    """A 6 bit count or threshold field: 0 and 33 to 63 mean 32."""
+    field &= 63
+    return 32 if field == 0 or field > 32 else field
+
+
 class Shuttle:
     """One of the four shuttles: registers, FIFOs, divider, line coder, CRC."""
 
@@ -119,9 +125,9 @@ class Shuttle:
     @property
     def fst_diff(self): return bit(self.regs[0x09], 4)
     @property
-    def pull_thresh(self): return self.regs[0x0A] or 32
+    def pull_thresh(self): return _count(self.regs[0x0A])
     @property
-    def push_thresh(self): return self.regs[0x0B] or 32
+    def push_thresh(self): return _count(self.regs[0x0B])
     @property
     def wrap_bot(self): return self.regs[0x0C]
     @property

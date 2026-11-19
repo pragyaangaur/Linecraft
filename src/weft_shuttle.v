@@ -140,10 +140,10 @@ module weft_shuttle (
         end
     endfunction
 
-    function [5:0] count32;            // a 6 bit count field where 0 means 32
+    function [5:0] count32;            // a 6 bit count field: 0 and 33 to 63 mean 32
         input [5:0] c;
         begin
-            count32 = (c == 6'd0) ? 6'd32 : c;
+            count32 = (c == 6'd0 || c > 6'd32) ? 6'd32 : c;
         end
     endfunction
 

@@ -84,7 +84,7 @@ Instructions are 24 bits wide. The instruction memory holds 64 instructions shar
 | 14:12 | side-set value. Bit `i` goes to pin `SIDE_BASE + i` for `i < SIDE_COUNT` |
 | 11:0 | arguments |
 
-Pin numbers always wrap modulo 16, so `OUT_BASE + i` means `(OUT_BASE + i) mod 16`. A count field of 0 means 32.
+Pin numbers always wrap modulo 16, so `OUT_BASE + i` means `(OUT_BASE + i) mod 16`. A count field of 0 means 32, and so does any value from 33 to 63. The same rule applies to `PULL_THRESH` and `PUSH_THRESH`.
 
 Side-set writes `pv` bits, or `pe` bits if `SIDE_PINDIR = 1`. If an instruction writes the same pin through its main effect and through side-set, the side-set value wins.
 
