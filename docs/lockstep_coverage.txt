@@ -1,0 +1,31 @@
+coverage over 60 trials of 500 cycles
+opcode   ran      stalled
+JMP      1722     0
+WAIT     397      9538
+IN       675      5704
+OUT      651      6962
+PUSH     575      561
+PULL     517      5138
+MOV      1335     0
+SET      834      0
+IRQ      519      0
+CTL      173      0
+jump condition   not taken   taken
+always           0           90
+!X               12          61
+X--              18          51
+!Y               76          25
+Y--              23          117
+MORE             6           44
+PIN              36          20
+!PIN             13          60
+!OSRE            23          194
+TXNE             42          115
+MATCH            21          22
+!MATCH           9           301
+CRCOK            13          22
+FERR             45          2
+FPEND            63          40
+RXNF             6           152
+line coder steps: 47 transmit, 71 receive
+cycles with CRC bits fed: 359

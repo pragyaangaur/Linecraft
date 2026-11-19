@@ -20,6 +20,61 @@ from weft.asm import disassemble                    # noqa: E402
 from weft_host import Host, reset                  # noqa: E402
 
 TRIALS = int(os.environ.get("LOCKSTEP_TRIALS", "12"))
+OPS = ["JMP", "WAIT", "IN", "OUT", "PUSH", "PULL", "MOV", "SET", "IRQ", "CTL"]
+CONDS = ["always", "!X", "X--", "!Y", "Y--", "MORE", "PIN", "!PIN", "!OSRE", "TXNE",
+         "MATCH", "!MATCH", "CRCOK", "FERR", "FPEND", "RXNF"]
+
+
+class Coverage:
+    """Counts what the random programs actually exercised, sampled from the RTL each cycle."""
+
+    def __init__(self):
+        self.ran = {op: 0 for op in OPS}
+        self.stalled = {op: 0 for op in OPS}
+        self.jumps = {c: [0, 0] for c in CONDS}       # [not taken, taken]
+        self.fst_steps = [0, 0]                         # transmit, receive line coder steps
+        self.crc_feeds = 0
+        self.side_sets = 0
+
+    def sample(self, u):
+        if not int(u.attempt.value):
+            return
+        op = int(u.op.value)
+        if op >= len(OPS):
+            return
+        if int(u.stall.value):
+            self.stalled[OPS[op]] += 1
+            return
+        self.ran[OPS[op]] += 1
+        f_a = int(u.f_a.value)
+        if op == 0:
+            self.jumps[CONDS[f_a]][int(u.cond.value)] += 1
+        if op == 3 and f_a == 7:
+            self.fst_steps[0] += 1
+        if op == 2 and f_a == 6:
+            self.fst_steps[1] += 1
+        if int(u.feed_n.value):
+            self.crc_feeds += 1
+
+    def report(self):
+        lines = ["opcode   ran      stalled"]
+        lines += [f"{op:<8} {self.ran[op]:<8} {self.stalled[op]}" for op in OPS]
+        lines.append("jump condition   not taken   taken")
+        lines += [f"{c:<16} {n:<11} {t}" for c, (n, t) in self.jumps.items()]
+        lines.append(f"line coder steps: {self.fst_steps[0]} transmit, {self.fst_steps[1]} receive")
+        lines.append(f"cycles with CRC bits fed: {self.crc_feeds}")
+        return "\n".join(lines)
+
+    def holes(self):
+        missing = [f"{op} never ran" for op in OPS if not self.ran[op]]
+        missing += [f"{op} never stalled" for op in ("WAIT", "IN", "OUT", "PUSH", "PULL") if not self.stalled[op]]
+        missing += [f"JMP {c} never {'taken' if i else 'not taken'}"
+                    for c, counts in self.jumps.items() for i in (0, 1)
+                    if not counts[i] and not (c == "always" and i == 0)]
+        return missing
+
+
+COVERAGE = Coverage()
 CYCLES = int(os.environ.get("LOCKSTEP_CYCLES", "600"))
 SEED = int(os.environ.get("LOCKSTEP_SEED", "1"))
 
@@ -50,6 +105,16 @@ def random_instruction(rng):
     return (op << 20) | (delay << 15) | (side << 12) | args
 
 
+def random_table(rng):
+    """A random line coder table in which some states have two equal entries with no transfer, so FPEND is exercised."""
+    table = [rng.randrange(128) for _ in range(32)]
+    for state in range(16):
+        if rng.random() < 0.3:
+            table[2 * state] &= ~(1 << 5)
+            table[2 * state + 1] = table[2 * state]
+    return table
+
+
 def random_config(rng):
     cfg = ShuttleConfig(
         div_int=rng.choice([1, 1, 1, 2, 3, 5]),
@@ -64,11 +129,16 @@ def random_config(rng):
         jmp_pin=rng.randrange(16),
         sync_en=rng.random() < 0.3, sync_pin=rng.randrange(16), sync_phase=rng.randrange(6),
         fst_init=rng.randrange(16),
-        fst_table=[rng.randrange(128) for _ in range(32)],
+        fst_table=random_table(rng),
         crc_src=rng.randrange(3), crc_init_ones=rng.random() < 0.5,
         crc_xorout_ones=rng.random() < 0.5, crc_width=rng.randrange(1, 33),
-        crc_poly=rng.randrange(1 << 32), crc_check=rng.randrange(1 << 32),
-        match_mask=rng.randrange(1 << 16), match_val=rng.randrange(1 << 16),
+        crc_poly=rng.randrange(1 << 32),
+        # A check of 0 or all ones matches a fresh CRC register, so CRCOK is seen taken.
+        crc_check=rng.choice([0, 0xFFFFFFFF, rng.randrange(1 << 32)]),
+        # Masks with few bits make MATCH true often enough to be exercised.
+        match_mask=rng.choice([0, 1 << rng.randrange(16), (1 << rng.randrange(16)) | (1 << rng.randrange(16)),
+                               rng.randrange(1 << 16)]),
+        match_val=rng.choice([0, rng.randrange(1 << 16)]),
     )
     return cfg
 
@@ -133,6 +203,8 @@ async def one_trial(dut, rng, trial):
     ui_rand, uio_rand = 0, 0
     for cycle in range(CYCLES):
         await FallingEdge(dut.clk)
+        for e in range(4):
+            COVERAGE.sample(top.sh[e].u)
         if writer.done():
             if rng.random() < 0.3:
                 ui_rand ^= 1 << rng.randrange(5)
@@ -172,3 +244,7 @@ async def test_lockstep_random(dut):
     rng = random.Random(SEED)
     for trial in range(TRIALS):
         await one_trial(dut, rng, trial)
+    dut._log.info("coverage over %d trials of %d cycles\n%s", TRIALS, CYCLES, COVERAGE.report())
+    holes = COVERAGE.holes()
+    if holes:
+        dut._log.warning("coverage holes: %s", "; ".join(holes))
