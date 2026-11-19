@@ -42,8 +42,14 @@ COMPILE_ARGS 		+= -I$(SRC_DIR)
 VERILOG_SOURCES += $(PWD)/tb.v
 TOPLEVEL = tb
 
-# List test modules to run, separated by commas and without the .py suffix:
-COCOTB_TEST_MODULES = test,test_protocols
+# List test modules to run, separated by commas and without the .py suffix.
+# The lockstep test reads internal registers, which only exist in RTL, so the
+# gate level run uses the tests that look at pins only.
+ifneq ($(GATES),yes)
+COCOTB_TEST_MODULES ?= test,test_protocols,test_lockstep
+else
+COCOTB_TEST_MODULES ?= test,test_protocols
+endif
 
 # include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
