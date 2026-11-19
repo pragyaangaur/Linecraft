@@ -1,0 +1,26 @@
+; SPI controller, mode 0, 8 bit words, full duplex, MSB first.
+; One SCK period is 4 ticks. CS stays low while the host keeps the TX
+; FIFO fed, and goes high after the last byte.
+; Pins: SCK = SIDE_BASE = SET_BASE, MOSI = OUT_BASE = SET_BASE + 1,
+; CS = SET_BASE + 2, MISO = IN_BASE.
+; Config: SET_COUNT = 3, side-set 1 pin, OUT_RIGHT = IN_RIGHT = 0.
+.program spi_master
+.side_set 1
+    set pins, 0b100     side 0      ; CS high, SCK low
+    set pindirs, 0b111  side 0
+.wrap_target
+    pull block          side 0
+    set pins, 0         side 0      ; CS low
+next:
+    set x, 7            side 0
+bit:
+    out pins, 1         side 0 [1]  ; MOSI changes while SCK is low
+    in pins, 1          side 1      ; sample MISO at the rising edge
+    jmp x-- bit         side 1
+    push block          side 0
+    jmp txne more       side 0
+    set pins, 0b100     side 0      ; CS high
+.wrap
+more:
+    pull block          side 0
+    jmp next            side 0

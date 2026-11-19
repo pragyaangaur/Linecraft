@@ -1,0 +1,35 @@
+; USB low speed packet receiver with clock recovery, NRZI decoding,
+; bit destuffing and a CRC16 check.
+; One bit is 2 ticks. The divider resyncs on every edge of D-, with
+; SYNC_PHASE chosen so the ticks fall at 1/4 and 3/4 of each bit. Data is
+; sampled at 3/4 and SE0 is checked at 1/4, so edges always land between
+; ticks and the program never loses its place in the bit.
+; Received bytes (SYNC, PID, data, CRC) are pushed to the RX FIFO. At EOP
+; the CRC residue is checked: IRQ 0 means a good packet, IRQ 1 a bad one.
+; Pins: D- = IN_BASE = SYNC_PIN, D+ = D- + 1.
+; Config: IN_RIGHT = 1, AUTOPUSH = 1 with PUSH_THRESH = 8, MATCH on D-
+; and D+ both low, line coder usb_rx with FST_INIT = J, CRC16 USB on the
+; received bits with CRC_CHECK = the CRC16 residue.
+.program usb_ls_rx
+.wrap_target
+start:
+    ctl crc fst
+    mov isr, null
+    set x, 14
+    wait 0 pin 0                    ; first K of SYNC, at 1/4 of bit 0
+hdr:
+    in fst, 1                       ; 3/4
+    jmp x-- hdr                     ; 1/4
+    in fst, 1                       ; 3/4 of bit 15
+    ctl crc                         ; 1/4 of bit 16: CRC covers only the data
+data:
+    in fst, 1                       ; 3/4
+    jmp !match data                 ; 1/4: carry on unless SE0
+    jmp crcok good
+    irq set 1
+    jmp fin
+good:
+    irq set 0
+fin:
+    wait 1 pin 0                    ; back to J
+.wrap

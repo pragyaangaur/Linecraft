@@ -1,0 +1,37 @@
+; USB low speed packet transmitter with NRZI, bit stuffing and CRC16.
+; One bit is 4 ticks, so DIV = clk / (4 * 1.5 MHz).
+; The host pushes SYNC (0x80), the PID and the data bytes. The program
+; sends them through the usb_tx line coder, restarts the CRC after SYNC
+; and PID, appends the CRC16 from the CRC unit, and ends with EOP.
+; Every symbol takes exactly 4 ticks, including the stuffed bits, which
+; is why the loops test MORE and keep one spare tick on each path.
+; Pins: D- = OUT_BASE = SET_BASE, D+ = OUT_BASE + 1.
+; Config: SET_COUNT = 2, FST_DIFF = 1, OUT_RIGHT = 1, AUTOPULL = 1 with
+; PULL_THRESH = 8, line coder usb_tx with FST_INIT = J, CRC16 USB on the
+; transmitted bits.
+.program usb_ls_tx
+    set pins, 0b01                  ; J: D- high, D+ low
+    set pindirs, 0b11
+.wrap_target
+    ctl fst
+    set x, 14
+hdr:
+    out fst, 1           [1]        ; SYNC and PID bits. The first OUT waits for the host
+    jmp x-- hdr          [1]
+    out fst, 1           [1]        ; last PID bit
+    ctl crc              [1]        ; the CRC covers only the data bytes
+data:
+    out fst, 1
+    jmp more dcont       [1]
+    mov osr, crc                    ; data done: send the CRC
+tail:
+    out fst, 1
+    jmp more ccont       [1]
+    nop                             ; let the last CRC bit finish
+    set pins, 0b00       [7]        ; EOP: SE0 for two bits
+    set pins, 0b01       [3]        ; then J for one bit
+.wrap
+dcont:
+    jmp data
+ccont:
+    jmp tail

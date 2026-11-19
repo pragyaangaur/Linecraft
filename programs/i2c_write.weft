@@ -1,0 +1,37 @@
+; I2C controller write with ACK readback.
+; SDA and SCL are open drain: the pin value stays 0 and the program moves
+; the pin direction. Side-set drives the SCL direction, so side 1 pulls
+; SCL low. One SCL period is 4 ticks.
+; The host pushes the address byte (addr << 1) and then the data bytes.
+; For every byte, the ACK bit (0 means ACK) goes to the RX FIFO. When the
+; TX FIFO runs dry the program sends STOP.
+; Pins: SDA = OUT_BASE = SET_BASE = IN_BASE, SCL = SIDE_BASE. Use pins
+; 8 to 15, which are the only bidirectional pins.
+; Config: SET_COUNT = 1, side-set 1 pin on pin directions, OUT_RIGHT = 0,
+; IN_RIGHT = 0.
+.program i2c_write
+.side_set 1 pindirs
+    set pins, 0      side 0         ; SDA output value is always 0
+    set pindirs, 0   side 0         ; release SDA
+.wrap_target
+    pull block       side 0
+    set pindirs, 1   side 0 [1]     ; START: SDA falls while SCL is high
+byte:
+    mov osr, ~osr    side 1         ; SCL low. Invert so a 1 releases SDA
+    set x, 7         side 1
+bit:
+    out pindirs, 1   side 1         ; SDA changes while SCL is low
+    nop              side 0 [1]     ; SCL high
+    jmp x-- bit      side 1
+    set pindirs, 0   side 1         ; release SDA for the ACK
+    nop              side 0
+    in pins, 1       side 0         ; read ACK while SCL is high
+    push block       side 1
+    jmp txne next    side 1
+    set pindirs, 1   side 1         ; SDA low
+    nop              side 0 [1]     ; SCL high
+    set pindirs, 0   side 0 [1]     ; STOP: SDA rises while SCL is high
+.wrap
+next:
+    pull block       side 1
+    jmp byte         side 1

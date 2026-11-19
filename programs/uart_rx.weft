@@ -1,0 +1,20 @@
+; 8N1 UART receiver.
+; One bit is 8 ticks. The first data bit is sampled 12 ticks (1.5 bits)
+; after the start edge, then every 8 ticks, so each sample is mid-bit.
+; Config: IN_BASE = JMP_PIN = RX pin, IN_RIGHT = 1.
+; A bad stop bit sets IRQ 0 and the byte is dropped.
+.program uart_rx
+.wrap_target
+start:
+    wait 0 pin 0
+    set x, 7         [10]
+bit:
+    in pins, 1       [6]
+    jmp x-- bit
+    jmp pin good
+    irq set 0
+    wait 1 pin 0
+    jmp start
+good:
+    push block
+.wrap

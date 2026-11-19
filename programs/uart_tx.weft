@@ -1,0 +1,15 @@
+; 8N1 UART transmitter.
+; One bit is 8 ticks, so DIV = clk / (8 * baud).
+; Config: SET_BASE = OUT_BASE = TX pin, SET_COUNT = 1, OUT_RIGHT = 1.
+.program uart_tx
+    set pins, 1              ; idle high before taking the pin
+    set pindirs, 1
+.wrap_target
+    pull block
+    set x, 7
+    set pins, 0      [7]     ; start bit
+bit:
+    out pins, 1      [6]
+    jmp x-- bit
+    set pins, 1      [7]     ; stop bit
+.wrap
