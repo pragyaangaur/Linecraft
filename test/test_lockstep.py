@@ -78,6 +78,7 @@ COVERAGE = Coverage()
 CYCLES = int(os.environ.get("LOCKSTEP_CYCLES", "600"))
 SEED = int(os.environ.get("LOCKSTEP_SEED", "1"))
 HOST_TRAFFIC = os.environ.get("LOCKSTEP_HOST_TRAFFIC", "1") == "1"
+NS = int(os.environ.get("WEFT_NS", "4"))      # must match NS in src/project.v
 
 
 def random_instruction(rng):
@@ -165,16 +166,16 @@ def model_state(sh):
 async def one_trial(dut, rng, trial):
     host = Host(dut)
     await reset(dut)
-    chip = Chip()
+    chip = Chip(num_shuttles=NS)
 
     words = [random_instruction(rng) for _ in range(64)]
     writes = []
     for i, w in enumerate(words):
         a = 0x400 + 4 * i
         writes += [(a, w & 0xFF), (a + 1, (w >> 8) & 0xFF), (a + 2, w >> 16)]
-    for e in range(4):
+    for e in range(NS):
         writes += setup_writes(e, random_config(rng))
-    preload = {e: [rng.randrange(256) for _ in range(rng.randrange(5))] for e in range(4)}
+    preload = {e: [rng.randrange(256) for _ in range(rng.randrange(5))] for e in range(NS)}
 
     await host.write_many(writes)
     chip.write_all(writes)
@@ -187,7 +188,7 @@ async def one_trial(dut, rng, trial):
     # Enable all shuttles and line the model up with the clock edge where the
     # RTL's enable register changes. The synchronizer flops are copied from the
     # RTL, since the host pins were toggling until then.
-    enable = rng.choice([0xF, 0xF, 0x7, 0x9])
+    enable = rng.choice([0xF, 0xF, 0x7, 0x9]) & ((1 << NS) - 1)
     writer = cocotb.start_soon(host.write(0x001, enable))
     top = dut.user_project
     while True:
@@ -213,7 +214,7 @@ async def one_trial(dut, rng, trial):
         # Change pins only just after rising edges, as the host driver always does.
         await RisingEdge(dut.clk)
         while True:
-            e = rng.randrange(4)
+            e = rng.randrange(NS)
             if rng.random() < 0.5:
                 await host.write(0x008 + e, [rng.randrange(256) for _ in range(rng.randrange(1, 4))])
             else:
@@ -222,7 +223,7 @@ async def one_trial(dut, rng, trial):
     uio_rand = 0
     for cycle in range(CYCLES):
         await FallingEdge(dut.clk)
-        for e in range(4):
+        for e in range(NS):
             COVERAGE.sample(top.sh[e].u)
         if writer.done():
             if traffic is None and HOST_TRAFFIC:
@@ -255,7 +256,7 @@ async def one_trial(dut, rng, trial):
         await ReadOnly()
         got = (int(dut.uo_out.value) & 0x7F, int(dut.uio_out.value), int(dut.uio_oe.value))
         where = f"trial {trial} cycle {cycle}"
-        for e in range(4):
+        for e in range(NS):
             r = rtl_state(top.sh[e].u)
             m = model_state(chip.shuttles[e])
             if r != m:

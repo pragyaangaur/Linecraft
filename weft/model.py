@@ -644,14 +644,20 @@ class Shuttle:
 
 
 class Chip:
-    """The whole Weft core: four shuttles, shared memory, IRQs and pins.
+    """The whole Weft core: the shuttles, shared memory, IRQs and pins.
 
     `crc_forwarding` picks how the late CRC update is read (see Shuttle.crc).
+    `num_shuttles` matches NS in src/project.v. Host accesses to a shuttle
+    that is not built do nothing and read as the RTL's padding: a TX FIFO
+    that is full and an RX FIFO that is empty.
     """
 
-    def __init__(self, crc_forwarding=False):
-        self.shuttles = [Shuttle(e, crc_forwarding) for e in range(NUM_SHUTTLES)]
+    def __init__(self, crc_forwarding=False, num_shuttles=NUM_SHUTTLES):
+        self.shuttles = [Shuttle(e, crc_forwarding) for e in range(num_shuttles)]
         self.reset()
+
+    def _shuttle(self, e):
+        return self.shuttles[e] if e < len(self.shuttles) else None
 
     def reset(self):
         """rst_n low: every register to its reset value."""
@@ -683,13 +689,17 @@ class Chip:
         elif addr == 0x004:
             self.irq |= value
         elif 0x008 <= addr <= 0x00B:
-            fifo = self.shuttles[addr - 0x008].tx_fifo
-            if len(fifo) < FIFO_DEPTH:
-                fifo.append(value)
+            sh = self._shuttle(addr - 0x008)
+            if sh is not None and len(sh.tx_fifo) < FIFO_DEPTH:
+                sh.tx_fifo.append(value)
         elif 0x100 <= addr < 0x200:
-            self.shuttles[(addr - 0x100) >> 6].write_config(addr & 0x3F, value)
+            sh = self._shuttle((addr - 0x100) >> 6)
+            if sh is not None:
+                sh.write_config(addr & 0x3F, value)
         elif 0x200 <= addr < 0x280:
-            self.shuttles[(addr - 0x200) >> 5].table[addr & 0x1F] = value & 0x7F
+            sh = self._shuttle((addr - 0x200) >> 5)
+            if sh is not None:
+                sh.table[addr & 0x1F] = value & 0x7F
         elif 0x400 <= addr < 0x500:
             i, b = (addr - 0x400) >> 2, addr & 3
             if b < 2:
@@ -714,11 +724,15 @@ class Chip:
             return status
         if addr in (0x006, 0x007):
             # RX FIFO levels: low shuttle of the pair in [2:0], high one in [6:4].
-            lo, hi = self.shuttles[2 * (addr - 0x006):2 * (addr - 0x006) + 2]
-            return len(lo.rx_fifo) | (len(hi.rx_fifo) << 4)
+            value = 0
+            for half in (0, 1):
+                sh = self._shuttle(2 * (addr - 0x006) + half)
+                if sh is not None:
+                    value |= len(sh.rx_fifo) << (4 * half)
+            return value
         if 0x008 <= addr <= 0x00B:
-            fifo = self.shuttles[addr - 0x008].rx_fifo
-            return fifo.popleft() if fifo else 0
+            sh = self._shuttle(addr - 0x008)
+            return sh.rx_fifo.popleft() if sh is not None and sh.rx_fifo else 0
         return 0   # write-only and unmapped addresses read as 0
 
     def write_all(self, writes):
