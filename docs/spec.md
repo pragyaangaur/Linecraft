@@ -1,17 +1,17 @@
-# Loom architecture and instruction set
+# Weft architecture and instruction set
 
-This file is the reference for the chip. The Verilog in `src/` and the Python model in `loom/model.py` are both written from this file, and the tests check that the two agree cycle by cycle. When the two disagree, this file decides which one is wrong.
+This file is the reference for the chip. The Verilog in `src/` and the Python model in `weft/model.py` are both written from this file, and the tests check that the two agree cycle by cycle. When the two disagree, this file decides which one is wrong.
 
 ## Big picture
 
-Loom has four identical engines called shuttles. Each shuttle is a small processor that runs a program from a shared instruction memory and moves bits between pins and FIFOs with exact cycle timing. A host microcontroller loads programs and talks to the shuttles over an SPI port.
+Weft has four identical engines called shuttles. Each shuttle is a small processor that runs a program from a shared instruction memory and moves bits between pins and FIFOs with exact cycle timing. A host microcontroller loads programs and talks to the shuttles over an SPI port.
 
 Every shuttle also has two pieces of programmable hardware that sit between the pins and the shift registers.
 
 - A **line coder**. It is a finite state transducer with 16 states, stored as a 32 entry table. It can do NRZI, Manchester, bit stuffing and bit destuffing, and combinations of them, because each of those codes is a small state machine.
 - A **CRC unit**. It is a Galois LFSR with programmable width (1 to 32), polynomial, initial value and final XOR. It can compute the CRC of a USB packet, an Ethernet frame, a CAN frame or an SMBus transaction while the bits go past.
 
-The idea behind the design is that most serial protocols are built from three layers. The bottom layer is timing, which the shuttle program and its clock divider handle. The middle layer is a line code, which is a finite state machine on bits. The top layer is an error check, which is a linear map over GF(2). Loom gives each layer its own programmable hardware.
+The idea behind the design is that most serial protocols are built from three layers. The bottom layer is timing, which the shuttle program and its clock divider handle. The middle layer is a line code, which is a finite state machine on bits. The top layer is an error check, which is a linear map over GF(2). Weft gives each layer its own programmable hardware.
 
 ## Clock, reset and pins
 
@@ -61,7 +61,7 @@ With `DIV_INT = 1` and `DIV_FRAC = 0` the shuttle ticks every cycle. The average
 | `pv`, `pe` | 16 each | 0 (kept on restart) | Output values and enables |
 | TX FIFO, RX FIFO | 4 entries of 8 bits each | empty | Host to shuttle and shuttle to host |
 
-A restart (from the host `RESTART` register) puts every item above into its restart value, empties both FIFOs, and resets the divider (`cnt = 0`, `acc = 0`). It keeps `pv` and `pe` so that pins do not glitch. Reset (`rst_n`) does all of that and also clears `pv` and `pe`.
+Configuration does not load `pc`, `fst` or `crc` by itself, so the host should write `RESTART` after configuring a shuttle. A restart (from the host `RESTART` register) puts every item above into its restart value, empties both FIFOs, and resets the divider (`cnt = 0`, `acc = 0`). It keeps `pv` and `pe` so that pins do not glitch. Reset (`rst_n`) does all of that and also clears `pv` and `pe`.
 
 ## Execution
 
@@ -124,7 +124,7 @@ The jump is taken if the condition holds. `X--` and `Y--` decrement the register
 | 11 | `!MATCH` |
 | 12 | `CRCOK`: low `CRC_WIDTH` bits of `crc` equal `CRC_CHECK` (also masked to the width) |
 | 13 | `FERR`: `fst_err == 1` |
-| 14 | `FPEND`: the line coder has output that does not need input. This is true when both table entries for the current state have the transfer bit clear |
+| 14 | `FPEND`: the line coder has output that does not need input. This is true when the two table entries for the current state are identical and have the transfer bit clear, so the next step does not depend on the data bit. Note that an all zero table makes this true in state 0 |
 | 15 | `RXNF`: RX FIFO is not full |
 
 ### WAIT
@@ -251,7 +251,7 @@ The init value is all ones if `CRC_INIT_ONES = 1` and 0 otherwise. `xorout` is a
 
 Which bits are fed is set by `CRC_SRC`. 0 feeds nothing. 1 feeds data bits leaving through `OUT`. 2 feeds data bits entering through `IN`. For an `IN` or `OUT` of `n` bits, the first `min(n, 8)` bits are fed in shift order. For a right shift that order is `d[0], d[1], ...`, and for a left shift it is `d[n-1], d[n-2], ...`. A line coder step feeds its one data bit only when `xfer` is 1.
 
-The CRC update lands one clock cycle after the instruction that fed it. So an instruction that reads the CRC sees the bits fed by every instruction that completed in an earlier cycle. A `CTL` CRC reset in the same cycle as a pending update wins over the update.
+The CRC update lands one clock cycle after the instruction that fed it. So an instruction that reads the CRC (`MOV` from `CRC` or `JMP CRCOK`) sees the bits fed by instructions that completed at least two cycles earlier, and does not see bits fed in the cycle just before it. With a divider of 2 or more this never matters, because instructions are at least two cycles apart. A `CTL` CRC reset in the same cycle as a pending update wins over the update.
 
 ## Host SPI port
 
@@ -271,6 +271,8 @@ For a read, the data byte is chosen when the previous byte ends, and MISO shows 
 | `0x003` | R/W1C | IRQ flags. Writing 1 clears a flag |
 | `0x004` | W1S | Writing 1 sets an IRQ flag |
 | `0x005` | R | FIFO status: `[3:0]` TX not full, `[7:4]` RX not empty |
+| `0x006` | R | RX FIFO levels (0 to 4): shuttle 0 in `[2:0]`, shuttle 1 in `[6:4]` |
+| `0x007` | R | RX FIFO levels: shuttle 2 in `[2:0]`, shuttle 3 in `[6:4]` |
 | `0x008 + e` | R/W | Write pushes a byte into the TX FIFO of shuttle `e`. Read pops its RX FIFO (0 if empty). Writes to a full FIFO are dropped |
 | `0x100 + 0x40*e + k` | W | Shuttle `e` configuration register `k` (table below) |
 | `0x200 + 0x20*e + j` | W | Shuttle `e` line coder entry `j` (7 bits) |

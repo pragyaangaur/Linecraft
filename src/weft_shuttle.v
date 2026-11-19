@@ -34,6 +34,7 @@ module weft_shuttle (
     output wire        tx_full,
     output wire        rx_empty,
     output wire [7:0]  rx_head,
+    output wire [2:0]  rx_level,
 
     output reg  [15:0] pv,
     output reg  [15:0] pe
@@ -187,6 +188,7 @@ module weft_shuttle (
     wire   rx_full  = (rx_cnt == 3'd4);
     assign rx_empty = (rx_cnt == 3'd0);
     assign rx_head  = rxf[rx_rd];
+    assign rx_level = rx_cnt;
     wire [7:0] tx_head = txf[tx_rd];
 
     // ------------------------------------------------------------------
@@ -263,7 +265,8 @@ module weft_shuttle (
     // Line coder entries for the current state.
     wire [6:0] fe0   = fst_tab[{fst, 1'b0}];
     wire [6:0] fe1   = fst_tab[{fst, 1'b1}];
-    wire       fpend = ~fe0[5] & ~fe1[5];
+    // The next step needs no data bit when both entries agree and take none.
+    wire       fpend = (fe0 == fe1) & ~fe0[5];
 
     // Jump condition
     reg cond;

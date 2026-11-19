@@ -110,6 +110,7 @@ module tt_um_pragyaangaur_weft (
     wire [15:0] s_pe   [0:NS-1];
     wire [NS-1:0] s_tx_full, s_rx_empty;
     wire [7:0]  s_rx_head [0:NS-1];
+    wire [2:0]  s_rx_level [0:NS-1];
 
     genvar g;
     generate
@@ -130,7 +131,7 @@ module tt_um_pragyaangaur_weft (
                 .wdata(h_wdata),
                 .tx_push(fifo_wr), .rx_pop(fifo_rd),
                 .tx_full(s_tx_full[g]), .rx_empty(s_rx_empty[g]),
-                .rx_head(s_rx_head[g]),
+                .rx_head(s_rx_head[g]), .rx_level(s_rx_level[g]),
                 .pv(s_pv[g]), .pe(s_pe[g])
             );
         end
@@ -147,6 +148,8 @@ module tt_um_pragyaangaur_weft (
                 8'h01: h_rdata = {4'd0, enable};
                 8'h03: h_rdata = irq;
                 8'h05: h_rdata = {~s_rx_empty, ~s_tx_full};
+                8'h06: h_rdata = {1'b0, s_rx_level[1], 1'b0, s_rx_level[0]};
+                8'h07: h_rdata = {1'b0, s_rx_level[3], 1'b0, s_rx_level[2]};
                 8'h08: h_rdata = s_rx_head[0];
                 8'h09: h_rdata = s_rx_head[1];
                 8'h0A: h_rdata = s_rx_head[2];
