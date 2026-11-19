@@ -106,25 +106,40 @@ async def test_uart_rx_framing_error(dut):
 # SPI
 # ----------------------------------------------------------------------
 
+SPI_MODES = {0: (0, 0, 1), 1: (0, 1, 0), 2: (1, 1, 0), 3: (1, 0, 1)}   # IDLE, SHIFT, SAMPLE
+
+
+def spi_program(mode):
+    idle, shift, sample = SPI_MODES[mode]
+    with open(os.path.join(ROOT, "programs", "spi_master.weft")) as f:
+        text = f.read()
+    text = text.replace(".define IDLE 0", f".define IDLE {idle}")
+    text = text.replace(".define SHIFT 0", f".define SHIFT {shift}")
+    text = text.replace(".define SAMPLE 1", f".define SAMPLE {sample}")
+    return assemble(text)
+
+
 @cocotb.test()
-async def test_spi_master_mode0(dut):
+@cocotb.parametrize(mode=[0, 1, 2, 3])
+async def test_spi_master(dut, mode):
     host = await start(dut)
     # SCK = pin 2, MOSI = pin 3, CS = pin 4 on uo_out; MISO = ui_in[0]
     cfg = ShuttleConfig(set_base=2, set_count=3, side_base=2, out_base=3, in_base=0)
     cfg.set_ratio(2)
-    await load(host, 0, cfg, program("spi_master"))
+    await load(host, 0, cfg, spi_program(mode))
     reply = [0x9F, 0x01, 0xEE, 0x70]
-    target = SpiTarget(dut, sck=2, mosi=3, cs=4, miso=0, reply=reply, drive=host.set_pins)
-    cocotb.start_soon(target.run())
+    target = SpiTarget(dut, sck=2, mosi=3, cs=4, miso=0, reply=reply, drive=host.set_pins, mode=mode)
     await host.write(0x001, 0x1)
+    await ClockCycles(dut.clk, 20)
+    cocotb.start_soon(target.run())
     sent = [0xA5, 0x3C, 0xFF, 0x00]
     await host.write(0x008, sent)
     await ClockCycles(dut.clk, 600)
     assert target.received == sent, target.received
     assert await host.read(0x008, 4) == reply
-    # The first frame is the pin coming up low before the program owns it.
-    assert target.cs_frames <= 2
+    assert target.cs_frames == 1, target.cs_frames
     assert (int(dut.uo_out.value) >> 4) & 1, "CS should be high again"
+    assert ((int(dut.uo_out.value) >> 2) & 1) == mode >> 1, "SCK should rest at CPOL"
 
 
 # ----------------------------------------------------------------------

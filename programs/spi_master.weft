@@ -1,26 +1,33 @@
-; SPI controller, mode 0, 8 bit words, full duplex, MSB first.
+; SPI controller, 8 bit words, full duplex, MSB first, any of the four modes.
+; The three defines set the mode. IDLE is CPOL. SHIFT is the SCK level while
+; MOSI changes and SAMPLE is the SCK level while MISO is read:
+;   mode 0: IDLE 0, SHIFT 0, SAMPLE 1      mode 1: IDLE 0, SHIFT 1, SAMPLE 0
+;   mode 2: IDLE 1, SHIFT 1, SAMPLE 0      mode 3: IDLE 1, SHIFT 0, SAMPLE 1
 ; One SCK period is 4 ticks. CS stays low while the host keeps the TX
 ; FIFO fed, and goes high after the last byte.
 ; Pins: SCK = SIDE_BASE = SET_BASE, MOSI = OUT_BASE = SET_BASE + 1,
 ; CS = SET_BASE + 2, MISO = IN_BASE.
 ; Config: SET_COUNT = 3, side-set 1 pin, OUT_RIGHT = IN_RIGHT = 0.
 .program spi_master
+.define IDLE 0
+.define SHIFT 0
+.define SAMPLE 1
 .side_set 1
-    set pins, 0b100     side 0      ; CS high, SCK low
-    set pindirs, 0b111  side 0
+    set pins, 0b100     side IDLE      ; CS high, SCK idle
+    set pindirs, 0b111  side IDLE
 .wrap_target
-    pull block          side 0
-    set pins, 0         side 0      ; CS low
+    pull block          side IDLE
+    set pins, 0         side IDLE      ; CS low
 next:
-    set x, 7            side 0
+    set x, 7            side IDLE
 bit:
-    out pins, 1         side 0 [1]  ; MOSI changes while SCK is low
-    in pins, 1          side 1      ; sample MISO at the rising edge
-    jmp x-- bit         side 1
-    push block          side 0
-    jmp txne more       side 0
-    set pins, 0b100     side 0      ; CS high
+    out pins, 1         side SHIFT [1] ; MOSI changes
+    in pins, 1          side SAMPLE    ; sample MISO on the next edge
+    jmp x-- bit         side SAMPLE
+    push block          side IDLE
+    jmp txne more       side IDLE
+    set pins, 0b100     side IDLE      ; CS high
 .wrap
 more:
-    pull block          side 0
-    jmp next            side 0
+    pull block          side IDLE
+    jmp next            side IDLE
