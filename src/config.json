@@ -17,6 +17,8 @@
 
   "//": "Synthesize for area. The default timing strategy buffered most nets and doubled the cell area.",
   "SYNTH_STRATEGY": "AREA 0",
+  "SYNTH_ABC_AREA_USE_NF": true,
+  "SYNTH_HIERARCHY_MODE": "deferred_flatten",
 
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
