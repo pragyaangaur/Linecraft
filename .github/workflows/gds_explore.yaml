@@ -1,0 +1,20 @@
+name: gds-explore
+# Hardening experiments on explore-* branches, kept apart from the main run.
+on:
+  push:
+    branches: ['explore-*']
+concurrency:
+  group: gds-explore-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  gds:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Build GDS
+        uses: TinyTapeout/tt-gds-action@ttihp27a
+        with:
+          pdk: ihp-sg13cmos5l
