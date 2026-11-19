@@ -195,7 +195,7 @@ module weft_shuttle (
     wire   tx_empty = (tx_cnt == 3'd0);
     wire   rx_full  = (rx_cnt == 3'd4);
     assign rx_empty = (rx_cnt == 3'd0);
-    assign rx_head  = rxf[rx_rd];
+    assign rx_head  = rx_empty ? 8'd0 : rxf[rx_rd];   // the spec reads 0 from an empty FIFO
     assign rx_level = rx_cnt;
     wire [7:0] tx_head = txf[tx_rd];
 
