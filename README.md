@@ -98,7 +98,7 @@ and the best choice s = 1/(2k) gives |d| < (1/(2k) - q/M) / R. R comes from the 
 
 For all six sync phases the window moves with P as predicted, and each measured edge sits between 0.20% and 0.37% outside the predicted one. The bound is therefore safe and close to tight. At P = 7 the receiver tolerates about 3% either way, which is twice the 1.5% that the USB specification allows a low speed device.
 
-The first version of this experiment used a symmetric bound and a sync phase chosen by eye, and it failed on one side. Following that failure up gave the asymmetric form above. In this design the sample point after an edge comes from the synchronizer latency as much as from `SYNC_PHASE`.
+[docs/theory.md](docs/theory.md) gives the argument for this bound and its sharper form, together with the arguments for receiver synthesis and for zero drift in the divider. The first version of this experiment used a symmetric bound and a sync phase chosen by eye, and it failed on one side. Following that failure up gave the asymmetric form above. In this design the sample point after an edge comes from the synchronizer latency as much as from `SYNC_PHASE`.
 
 ## Protocols
 
