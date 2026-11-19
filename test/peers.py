@@ -14,8 +14,12 @@ def bit(v, i):
 class SpiTarget:
     """SPI mode 0 target. It shifts out `reply` bytes MSB first and records what it receives."""
 
-    def __init__(self, dut, sck, mosi, cs, miso, reply):
+    def __init__(self, dut, sck, mosi, cs, miso, reply, drive):
+        # `drive(value, mask)` sets ui_in bits. It must be the host driver's
+        # pin setter, because two writers of ui_in in one timestep would
+        # overwrite each other's bits.
         self.dut, self.sck, self.mosi, self.cs, self.miso = dut, sck, mosi, cs, miso
+        self.drive = drive
         self.reply = list(reply)
         self.received = []
         self.cs_frames = 0
@@ -45,9 +49,7 @@ class SpiTarget:
             prev_sck, prev_cs = sck, cs
 
     def _drive(self, v):
-        ui = int(self.dut.ui_in.value)
-        ui = (ui & ~(1 << self.miso)) | (v << self.miso)
-        self.dut.ui_in.value = ui
+        self.drive(v << self.miso, 1 << self.miso)
 
 
 class I2cTarget:
