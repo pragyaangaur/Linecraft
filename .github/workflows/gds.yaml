@@ -1,8 +1,13 @@
 name: gds
 
 on:
-  push:
+  # Hardening takes a long time, so it runs by hand at milestones and the
+  # newest run replaces any older one that is still going.
   workflow_dispatch:
+
+concurrency:
+  group: gds
+  cancel-in-progress: true
 
 jobs:
   gds:
