@@ -572,3 +572,40 @@ async def test_jtag_idcode(dut):
     shifted = tdo_bits[9:9 + 32]
     assert sum(b << k for k, b in enumerate(shifted)) == idcode, hex(sum(b << k for k, b in enumerate(shifted)))
     assert tap.state == "RTI" and tap.dr_captures, tap.state
+
+
+# ----------------------------------------------------------------------
+# PS/2
+# ----------------------------------------------------------------------
+
+@cocotb.test()
+async def test_ps2_rx(dut):
+    """A PS/2 device model sends frames; the chip checks odd parity with a 1 bit CRC."""
+    host = await start(dut)
+    cfg = ShuttleConfig(in_base=2, in_right=True, crc_src=CRC_RX, crc_width=1, crc_poly=1,
+                        crc_check=1)
+    await load(host, 0, cfg, program("ps2_rx"))
+    host.set_pins(0b0110, 0b0110)                      # CLK (pin 1) and DATA (pin 2) idle high
+    await host.write(0x001, 0x1)
+    await ClockCycles(dut.clk, 20)
+    half = 40
+
+    async def send(byte, good_parity=True):
+        parity = 1 - (bin(byte).count("1") & 1)
+        if not good_parity:
+            parity ^= 1
+        for b in [0] + [(byte >> k) & 1 for k in range(8)] + [parity, 1]:
+            host.set_pins(b << 2, 1 << 2)              # DATA changes while CLK is high
+            await ClockCycles(dut.clk, half // 2)
+            host.set_pins(0, 1 << 1)                   # CLK low: DATA is valid
+            await ClockCycles(dut.clk, half)
+            host.set_pins(1 << 1, 1 << 1)
+            await ClockCycles(dut.clk, half // 2)
+        await ClockCycles(dut.clk, 2 * half)
+
+    for b in (0x1C, 0xF0):                             # 'A' make code, then a break prefix
+        await send(b)
+    assert (await host.read(0x003))[0] == 0, "no parity error expected"
+    await send(0x32, good_parity=False)
+    assert (await host.read(0x003))[0] & 1, "parity error should set IRQ 0"
+    assert await host.read(0x008, 3) == [0x1C, 0xF0, 0x32]

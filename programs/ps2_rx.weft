@@ -1,0 +1,34 @@
+; PS/2 host receiving from a device such as a keyboard.
+; The device drives both CLK and DATA. Each frame is a start bit (0), 8
+; data bits LSB first, an odd parity bit and a stop bit (1), with DATA
+; valid while CLK is low. The program follows CLK, pushes each data byte,
+; and checks parity with the CRC unit set to width 1 and polynomial 1: over
+; the 8 data bits and the parity bit that CRC is the XOR of all nine, which
+; is 1 for a good frame, so CRC_CHECK = 1 and JMP CRCOK accepts it.
+; A parity error sets IRQ 0 after the byte has been pushed.
+; Pins: DATA = IN_BASE, CLK given by the define.
+; Config: IN_RIGHT = 1, CRC_SRC = receive, CRC_WIDTH = 1, CRC_POLY = 1,
+; CRC_CHECK = 1.
+.program ps2_rx
+.define CLK 1
+.wrap_target
+start:
+    ctl crc
+    wait 0 gpio CLK                 ; start bit
+    wait 1 gpio CLK
+    set x, 7
+bit:
+    wait 0 gpio CLK
+    in pins, 1                      ; data bit, also fed to the CRC
+    wait 1 gpio CLK
+    jmp x-- bit
+    push noblock
+    wait 0 gpio CLK
+    in pins, 1                      ; parity bit
+    wait 1 gpio CLK
+    wait 0 gpio CLK                 ; stop bit
+    wait 1 gpio CLK
+    mov isr, null
+    jmp crcok start
+    irq set 0                       ; parity error
+.wrap
