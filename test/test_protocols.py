@@ -455,3 +455,20 @@ async def test_uart_parity_from_crc(dut, odd):
         ones = sum(bits[:9])
         assert ones % 2 == (1 if odd else 0), f"{byte:#x}: parity bit {bits[8]}"
         assert bits[9] == 1, "stop bit"
+
+
+@cocotb.test()
+async def test_i2c_read(dut):
+    host = await start(dut)
+    cfg = ShuttleConfig(out_base=8, set_base=8, set_count=1, in_base=8, side_base=9)
+    cfg.set_ratio(4)
+    await load(host, 0, cfg, program("i2c_read"))
+    target = I2cTarget(dut, sda=0, scl=1, address=0x48, read_data=[0x5A, 0x00, 0xFF])
+    cocotb.start_soon(target.run())
+    await host.write(0x001, 0x1)
+    await host.write(0x008, [(0x48 << 1) | 1, 0, 0, 0])
+    await ClockCycles(dut.clk, 1200)
+    got = await host.read(0x008, 4)
+    assert got == [0, 0x5A, 0x00, 0xFF], [hex(g) for g in got]
+    assert target.read_acks == [0, 0, 1], target.read_acks
+    assert target.events == ["START", "STOP"], target.events

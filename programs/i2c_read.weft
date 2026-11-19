@@ -1,0 +1,46 @@
+; I2C controller read.
+; The host pushes the address byte (addr << 1 | 1) and then one byte of any
+; value for each data byte it wants. The shuttle sends START and the
+; address, pushes the address ACK bit (0 means ACK), then reads bytes and
+; pushes each one. It ACKs a byte while the host has pushed more requests,
+; and NACKs the last one and sends STOP. So the host keeps the requests
+; ahead of the bus, as with the other transmit programs.
+; Pins and config are as for i2c_write: SDA = OUT_BASE = SET_BASE =
+; IN_BASE, SCL = SIDE_BASE, side-set on pin directions, OUT_RIGHT = 0,
+; IN_RIGHT = 0, SET_COUNT = 1. One SCL period is 4 ticks.
+.program i2c_read
+.side_set 1 pindirs
+    set pins, 0      side 0
+    set pindirs, 0   side 0
+.wrap_target
+    pull block       side 0
+    set pindirs, 1   side 0 [1]     ; START
+    mov osr, ~osr    side 1
+    set x, 7         side 1
+abit:
+    out pindirs, 1   side 1         ; address bits
+    nop              side 0 [1]
+    jmp x-- abit     side 1
+    set pindirs, 0   side 1         ; release SDA for the ACK
+    nop              side 0
+    in pins, 1       side 0
+    push block       side 1         ; address ACK bit
+byte:
+    pull block       side 1         ; one request per data byte
+    set x, 7         side 1
+rbit:
+    nop              side 0         ; SCL high
+    in pins, 1       side 0         ; sample SDA
+    jmp x-- rbit     side 1 [1]     ; SCL low
+    push block       side 1         ; the data byte
+    jmp txne ack     side 1
+    nop              side 0 [1]     ; NACK: SDA stays released while SCL is high
+    set pindirs, 1   side 1         ; SDA low
+    nop              side 0 [1]
+    set pindirs, 0   side 0 [1]     ; STOP
+.wrap
+ack:
+    set pindirs, 1   side 1         ; ACK: SDA low
+    nop              side 0 [1]
+    set pindirs, 0   side 1         ; SCL low, release SDA
+    jmp byte         side 1

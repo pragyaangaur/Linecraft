@@ -67,14 +67,16 @@ class SpiTarget:
 
 
 class I2cTarget:
-    """I2C target on an open drain bus. It ACKs its own address and every data byte.
+    """I2C target on an open drain bus, for writes and reads.
 
-    The chip pulls a line low by setting its output enable. The target pulls SDA low to ACK. The bus value is fed back on uio_in.
+    It ACKs its own address and every byte written to it. On a read it sends the bytes in `read_data` and records the controller's ACK (0) or NACK (1) after each one. The chip pulls a line low by setting its output enable, the target pulls SDA low itself, and the resolved bus is fed back on uio_in.
     """
 
-    def __init__(self, dut, sda, scl, address):
+    def __init__(self, dut, sda, scl, address, read_data=()):
         self.dut, self.sda, self.scl, self.address = dut, sda, scl, address
+        self.read_data = list(read_data)
         self.transactions = []
+        self.read_acks = []
         self.events = []
         self.pull_sda = False
 
@@ -92,34 +94,52 @@ class I2cTarget:
 
     async def run(self):
         prev_sda, prev_scl = 1, 1
-        state = "idle"
-        cur, nbits, byte = [], 0, 0
+        mode = "idle"            # idle, addr, write, read, done
+        cur, nbits, byte, out = [], 0, 0, 0
         while True:
             await RisingEdge(self.dut.clk)
             sda, scl = self._bus()
             self._feed(sda, scl)
             if scl and prev_scl and prev_sda and not sda:
                 self.events.append("START")
-                state, cur, nbits, byte = "data", [], 0, 0
+                mode, cur, nbits, byte = "addr", [], 0, 0
+                self.pull_sda = False
             elif scl and prev_scl and not prev_sda and sda:
                 self.events.append("STOP")
                 if cur:
                     self.transactions.append(cur)
-                state, cur = "idle", []
-            elif state == "data" and scl and not prev_scl:     # rising SCL: sample
+                mode, cur = "idle", []
+                self.pull_sda = False
+            elif mode in ("addr", "write", "read") and scl and not prev_scl:     # rising SCL
                 if nbits < 8:
-                    byte = (byte << 1) | sda
+                    if mode != "read":
+                        byte = (byte << 1) | sda
                     nbits += 1
                 else:
-                    nbits = 9                                   # ACK clock
-            elif state == "data" and not scl and prev_scl:     # falling SCL
+                    nbits = 9
+                    if mode == "read" and len(cur) > 1:    # not the address ACK
+                        self.read_acks.append(sda)
+                        if sda:
+                            mode = "done"
+            elif mode in ("addr", "write", "read") and not scl and prev_scl:     # falling SCL
                 if nbits == 8:
-                    cur.append(byte)
-                    ack = (cur[0] >> 1) == self.address
-                    self.pull_sda = ack
+                    if mode == "read":
+                        self.pull_sda = False                 # let the controller ACK
+                    else:
+                        cur.append(byte)
+                        match = (cur[0] >> 1) == self.address
+                        self.pull_sda = match                 # ACK
+                        if mode == "addr" and match:
+                            mode = "read" if cur[0] & 1 else "write"
                 elif nbits == 9:
-                    self.pull_sda = False
                     nbits, byte = 0, 0
+                    self.pull_sda = False
+                    if mode == "read":
+                        out = self.read_data.pop(0) if self.read_data else 0xFF
+                        cur.append(out)
+                        self.pull_sda = not (out >> 7) & 1
+                elif mode == "read" and 0 < nbits < 8:
+                    self.pull_sda = not (out >> (7 - nbits)) & 1
             prev_sda, prev_scl = sda, scl
 
 

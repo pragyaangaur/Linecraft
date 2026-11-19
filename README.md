@@ -110,6 +110,7 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | SPI controller, modes 0 to 3 | `spi_master.weft` | An SPI target model for each CPOL and CPHA that checks MOSI and replies on MISO, with CS held across bytes |
 | SPI target, mode 0 | `spi_target.weft` | An SPI controller model clocks the chip from its input pins at clk / 16 and checks MISO and the received bytes |
 | I2C controller write | `i2c_write.weft` | An open drain I2C target model that checks START, address, data and STOP and ACKs or NACKs |
+| I2C controller read | `i2c_read.weft` | The same target model sends bytes and records the controller's ACK on every byte but the last and the NACK on the last |
 | USB low speed transmit | `usb_ls_tx.weft` | A decoder written from the USB specification that undoes NRZI and stuffing and checks the CRC16 |
 | USB low speed receive | `usb_ls_rx.weft` | Loopback from the transmitter, with clock recovery, destuffing and a CRC16 residue check on the chip |
 | CAN 2.0A transmit | `can_tx.weft` | A decoder written from ISO 11898 that checks stuff bits, CRC-15, delimiters and EOF |
