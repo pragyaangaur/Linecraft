@@ -68,8 +68,16 @@ module tt_um_pragyaangaur_weft (
     wire wr_global = h_wr && (h_waddr[14:8] == 7'd0);
     wire [7:0] host_irq_clr = (wr_global && h_waddr[7:0] == 8'h03) ? h_wdata : 8'd0;
     wire [7:0] host_irq_set = (wr_global && h_waddr[7:0] == 8'h04) ? h_wdata : 8'd0;
-    wire [7:0] all_set = irq_set_s[0] | irq_set_s[1] | irq_set_s[2] | irq_set_s[3] | host_irq_set;
-    wire [7:0] all_clr = irq_clr_s[0] | irq_clr_s[1] | irq_clr_s[2] | irq_clr_s[3] | host_irq_clr;
+    reg  [7:0] all_set, all_clr;
+    integer i;
+    always @(*) begin
+        all_set = host_irq_set;
+        all_clr = host_irq_clr;
+        for (i = 0; i < NS; i = i + 1) begin
+            all_set = all_set | irq_set_s[i];
+            all_clr = all_clr | irq_clr_s[i];
+        end
+    end
 
     always @(posedge clk) begin
         if (!rst_n) begin
@@ -108,12 +116,17 @@ module tt_um_pragyaangaur_weft (
     wire [5:0]  s_pc   [0:NS-1];
     wire [15:0] s_pv   [0:NS-1];
     wire [15:0] s_pe   [0:NS-1];
-    wire [NS-1:0] s_tx_full, s_rx_empty;
+    wire [3:0]  s_tx_full, s_rx_empty;   // padded to four shuttles for the status register
     wire [7:0]  s_rx_head [0:NS-1];
     wire [2:0]  s_rx_level [0:NS-1];
 
     genvar g;
     generate
+        // Unused shuttle slots read as full and empty in the status register.
+        for (g = NS; g < 4; g = g + 1) begin : pad
+            assign s_tx_full[g] = 1'b1;
+            assign s_rx_empty[g] = 1'b1;
+        end
         for (g = 0; g < NS; g = g + 1) begin : sh
             wire cfg_we = h_wr && (h_waddr[14:8] == 7'd1) && (h_waddr[7:6] == g);
             wire fst_we = h_wr && (h_waddr[14:8] == 7'd2) && (h_waddr[7:5] == g);
@@ -148,14 +161,15 @@ module tt_um_pragyaangaur_weft (
                 8'h01: h_rdata = {4'd0, enable};
                 8'h03: h_rdata = irq;
                 8'h05: h_rdata = {~s_rx_empty, ~s_tx_full};
-                8'h06: h_rdata = {1'b0, s_rx_level[1], 1'b0, s_rx_level[0]};
-                8'h07: h_rdata = {1'b0, s_rx_level[3], 1'b0, s_rx_level[2]};
-                8'h08: h_rdata = s_rx_head[0];
-                8'h09: h_rdata = s_rx_head[1];
-                8'h0A: h_rdata = s_rx_head[2];
-                8'h0B: h_rdata = s_rx_head[3];
                 default: ;
             endcase
+            for (i = 0; i < NS; i = i + 1) begin
+                if ({24'd0, h_addr[7:0]} == 32'd8 + i) h_rdata = s_rx_head[i];
+                if ({24'd0, h_addr[7:0]} == 32'd6 + i / 2) begin
+                    if (i % 2 == 0) h_rdata[2:0] = s_rx_level[i];
+                    else            h_rdata[6:4] = s_rx_level[i];
+                end
+            end
         end
     end
 
