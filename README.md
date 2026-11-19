@@ -96,7 +96,7 @@ and the best choice s = 1/(2k) gives |d| < (1/(2k) - q/M) / R. R comes from the 
 | 9 | -2.43% to +3.86% | -2.70% to +4.10% |
 | 11 | -1.57% to +4.71% | -1.90% to +5.00% |
 
-For all six sync phases the window moves exactly as predicted, and each measured edge sits between 0.20% and 0.37% outside the predicted one. The bound is therefore safe and close to tight. At P = 7 the receiver tolerates about 3% either way, which is twice the 1.5% that the USB specification allows a low speed device.
+For all six sync phases the window moves with P as predicted, and each measured edge sits between 0.20% and 0.37% outside the predicted one. The bound is therefore safe and close to tight. At P = 7 the receiver tolerates about 3% either way, which is twice the 1.5% that the USB specification allows a low speed device.
 
 The first version of this experiment used a symmetric bound and a sync phase chosen by eye, and it failed on one side. Following that failure up gave the asymmetric form above. In this design the sample point after an edge comes from the synchronizer latency as much as from `SYNC_PHASE`.
 
@@ -130,15 +130,12 @@ The USB and CAN transmitters use the same two blocks with a different table and 
 Two separate implementations were written from [docs/spec.md](docs/spec.md): the Verilog in [src/](src) and a cycle accurate Python model in [weft/model.py](weft/model.py). The tests check them against each other and against the protocols.
 
 - **Lockstep random testing** ([test/test_lockstep.py](test/test_lockstep.py)). Each trial builds a random 64 instruction program and random configurations, line coder tables, CRC settings and FIFO contents for all four shuttles. It loads them into the RTL through the SPI port and into the model through its register interface, then drives random pin inputs. On every clock cycle it compares every output pin, the IRQ flags and fifteen architectural registers of every shuttle. This found one real gap in the spec: the meaning of a count field above 32, which the RTL and the model read differently. The spec now defines it. A 200 trial run of 1000 cycles each found no differences. The test also records functional coverage from the RTL, and in a 60 trial run every opcode runs, every opcode that can stall stalls, and every jump condition is seen both taken and not taken ([docs/lockstep_coverage.txt](docs/lockstep_coverage.txt)).
-- **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against peer models and decoders in [test/peers.py](test/peers.py) that share no code with the Weft toolchain.
+- **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against peer models and decoders in [test/peers.py](test/peers.py) that share no code with the Weft toolchain. They found one RTL bug that the lockstep test could not see, because it never reads an empty FIFO: a host read of an empty RX FIFO returned the stale slot instead of 0.
 - **Model and toolchain tests** ([weft/tests](weft/tests)), 173 of them. They cover the assembler round trip, every catalogue CRC (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8, CRC-7, CRC-16/CCITT) sent bit-exact on the wire through `MOV OSR, CRC`, and the line code analyses.
-
 - **Formal proofs** ([formal/run.sh](formal/run.sh)), which hold on every cycle of every run and take a few seconds.
   - The fractional divider has zero cumulative drift. With the configuration held, 256 times the elapsed cycles plus the accumulator always equals the sum of 256N + DIV_FRAC over the ticks so far, so tick k falls exactly at floor(k(N + DIV_FRAC/256)) cycles. This is proved by k-induction with z3 for every DIV_INT and DIV_FRAC.
   - A whole shuttle keeps its invariants for every program, configuration and input: the FIFOs never overflow or underflow and their pointers match their counts, the shift counters stay within 32, at most 8 CRC bits wait, an instruction only runs on a tick with no delay left, and a disabled shuttle that is not restarted keeps its program state. These are proved by temporal induction with Yosys.
   - A planted false assertion (a TX FIFO can never be full) must be found by the same setup, and it is found at depth 5. This shows the proofs are not vacuous.
-
-The design has not run on an FPGA.
 
 ## Building and testing
 
@@ -165,7 +162,7 @@ python -m weft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=50e6 > uart.
 
 | Path | Contents |
 | --- | --- |
-| `src/` | Verilog: `project.v` (top level), `weft_shuttle.v`, `weft_host.v` |
+| `src/` | Verilog: `project.v` (top level), `weft_shuttle.v`, `weft_divider.v`, `weft_host.v` |
 | `docs/spec.md` | The architecture, instruction set and register map |
 | `programs/` | Protocol programs in Weft assembly |
 | `weft/` | Assembler, cycle accurate model, configuration helper, line codes, CRC catalogue, analysis and receiver synthesis |
