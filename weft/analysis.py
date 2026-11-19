@@ -177,37 +177,53 @@ class _Cycle(Exception):
 
 # ----- (c) clock tolerance -----
 
-def clock_tolerance(run_length, oversample, q=1.0):
+def clock_tolerance(run_length, oversample, q=1.0, ticks_per_bit=1):
     """Guaranteed tolerance |df/f| between transmitter and receiver clocks.
 
-    Derivation. The receiver ticks every M = `oversample` clock cycles and,
-    with SYNC_EN, restarts its bit timer at every edge of the line so that it
-    samples near the middle of each symbol. An edge on the wire reaches `pins`
-    through the two flop synchronizer and is seen 2 to 3 cycles later, since
-    the wire can change anywhere within a clock period. The fixed 2 cycles
-    can be absorbed in SYNC_PHASE; what remains, together with rounding
-    SYNC_PHASE to whole cycles, puts the first sample within q cycles of the
-    true middle of the symbol (q = 1 for even M with a 2-3 cycle synchronizer;
-    add 1 if the divider has a fractional part, whose ticks jitter by a cycle).
+    Setting. The receiver ticks k = `ticks_per_bit` times per symbol, runs a
+    program that samples the line on one of those ticks, and with SYNC_EN
+    restarts its tick timer at every edge of the line. A symbol is
+    M = `oversample` clock cycles long.
 
-    Between two edges there are at most R identical symbols, so the k-th
-    sample after an edge (k = 1..R) sits at (k - 1/2) symbol times. If the
-    clocks differ by a fraction d, sample k drifts by (k - 1/2) * M * d
-    cycles. It still falls inside its symbol (a window of M/2 cycles either
-    side of the middle) if
+    After an edge the ticks sit at s, s + 1/k, s + 2/k, ... symbol times,
+    where s is set by SYNC_PHASE and the synchronizer delay. The program does
+    not know which of its k ticks follows an edge, so after a resync the
+    sampling instruction can land on any tick position. The positions that
+    matter are the first one, s, and the last one, s + (k - 1)/k.
 
-        (R - 1/2) * M * |d| + q < M / 2.
+    Between two edges there are at most R identical symbols. If the clocks
+    differ by a fraction d, the j-th sample after an edge moves by j * d
+    symbol times. The earliest sample position s fails once R * d reaches s
+    (a slow transmitter makes the samples fall before their symbol starts).
+    The latest position fails once -R * d reaches 1/k - s (a fast transmitter
+    makes them fall after their symbol ends). Taking q cycles of edge and
+    divider uncertainty off each side, the working range is
 
-    Using R in place of R - 1/2 gives the slightly safer bound returned here:
+        -(1/k - s - q/M) / R  <  d  <  (s - q/M) / R,
 
-        |d| < (1/2 - q/M) / R.
+    which is widest and symmetric at s = 1/(2k):
+
+        |d| < (1/(2k) - q/M) / R.
+
+    That symmetric value is returned. For k = 1 it is the classic bound
+    (1/2 - q/M) / R. experiments/cdr_sweep.py measures the asymmetric range
+    for the USB receiver (k = 2) at six sync phases, and the measured edges sit
+    within 0.4 percent outside the predicted ones.
 
     The next edge resynchronises the receiver, so errors do not accumulate.
     With R = inf (no guaranteed edges) no tolerance is guaranteed: 0.
     """
     if run_length == INF or run_length == 0:
         return 0.0
-    return max(0.5 - q / oversample, 0.0) / run_length
+    return max(0.5 / ticks_per_bit - q / oversample, 0.0) / run_length
+
+
+def tolerance_range(run_length, oversample, sample_pos, q=1.0, ticks_per_bit=2):
+    """The asymmetric working range (low, high) of d for a given first sample position s."""
+    if run_length == INF or run_length == 0:
+        return 0.0, 0.0
+    k, M, s = ticks_per_bit, oversample, sample_pos
+    return -(1 / k - s - q / M) / run_length, (s - q / M) / run_length
 
 
 # ----- (d) running digital sum -----
@@ -299,11 +315,11 @@ def _fmt(value):
     return str(value)
 
 
-def report(codes=None, oversamples=(8, 16), q=1.0):
+def report(codes=None, settings=((1, 16), (2, 33.33)), q=1.0):
     """The analysis table for the given codes as text."""
     codes = codes or CODES
     head = ["code", "states", "round trip", "R", "max |RDS|", "symbols/bit"] + \
-           [f"tol M={m}" for m in oversamples]
+           [f"tol k={k} M={m:g}" for k, m in settings]
     rows = [head]
     for code in codes.values():
         rt = check_round_trip(code.tx, code.tx_init, code.rx, code.rx_init)
@@ -314,7 +330,7 @@ def report(codes=None, oversamples=(8, 16), q=1.0):
         rows.append([code.name, str(used), trip, _fmt(r),
                      _fmt(digital_sum_bound(code.tx, code.tx_init)),
                      f"{_fmt(lo)} to {_fmt(hi)}"] +
-                    [f"{100 * clock_tolerance(r, m, q):.2f}%" for m in oversamples])
+                    [f"{100 * clock_tolerance(r, m, q, k):.2f}%" for k, m in settings])
     widths = [max(len(row[i]) for row in rows) for i in range(len(head))]
     return "\n".join("  ".join(c.ljust(w) for c, w in zip(row, widths)).rstrip() for row in rows)
 
