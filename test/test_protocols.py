@@ -383,3 +383,38 @@ async def test_spi_target(dut):
     await ClockCycles(dut.clk, 20)
     assert got == reply, [hex(g) for g in got]
     assert await host.read(0x008, 4) == sent
+
+
+@cocotb.test()
+async def test_uart_tx_115200_edges(dut):
+    """At 115200 baud from 50 MHz a bit is 434.03 cycles, which needs the fractional divider.
+
+    Every edge on the line must land within one clock of its ideal time, measured from the start bit, which shows that the error does not build up across a frame.
+    """
+    host = await start(dut)
+    cfg = ShuttleConfig(out_base=1, set_base=1, set_count=1, out_right=True)
+    achieved = cfg.set_rate(CLK_HZ, 8 * 115200)
+    assert abs(achieved / 8 / 115200 - 1) < 1e-4
+    await load(host, 0, cfg, program("uart_tx"))
+    await host.write(0x001, 0x1)
+    await ClockCycles(dut.clk, 300)           # two setup instructions at 54 cycles per tick
+    cycles_per_bit = CLK_HZ / 115200
+
+    async def edges(n):
+        out, prev, t = [], 1, 0
+        while len(out) < n:
+            await RisingEdge(dut.clk)
+            t += 1
+            v = (int(dut.uo_out.value) >> 1) & 1
+            if v != prev:
+                out.append(t)
+            prev = v
+        return out
+
+    cap = cocotb.start_soon(edges(10))
+    await host.write(0x008, [0x55, 0x55])          # 0x55 toggles on every bit
+    times = await cap
+    t0 = times[0]
+    for k, t in enumerate(times[:10]):
+        ideal = t0 + k * cycles_per_bit
+        assert abs(t - ideal) <= 1.0 + 1e-9, f"edge {k} at {t - t0} cycles, ideal {ideal - t0:.2f}"
