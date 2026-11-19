@@ -221,27 +221,13 @@ module weft_shuttle (
     // ------------------------------------------------------------------
     // Divider with edge resync
     // ------------------------------------------------------------------
-    reg [15:0] cnt;
-    reg [7:0]  acc;
-    wire [15:0] div_n     = (div_int == 16'd0) ? 16'd1 : div_int;
     wire        sync_edge = sync_en & (pins[sync_pin] ^ pins_prev[sync_pin]);
-    wire [8:0]  acc_sum   = {1'b0, acc} + {1'b0, div_frac};
-    wire        tick      = en & ~sync_edge & (cnt == 16'd0);
+    wire        tick;
 
-    always @(posedge clk) begin
-        if (!rst_n || !en || restart) begin
-            cnt <= 16'd0;
-            acc <= 8'd0;
-        end else if (sync_edge) begin
-            cnt <= sync_phase;
-            acc <= 8'd0;
-        end else if (cnt == 16'd0) begin
-            acc <= acc_sum[7:0];
-            cnt <= div_n - 16'd1 + {15'd0, acc_sum[8]};
-        end else begin
-            cnt <= cnt - 16'd1;
-        end
-    end
+    weft_divider divider (
+        .clk(clk), .rst_n(rst_n), .en(en), .restart(restart), .sync_edge(sync_edge),
+        .div_int(div_int), .div_frac(div_frac), .sync_phase(sync_phase), .tick(tick)
+    );
 
     // ------------------------------------------------------------------
     // Decode
@@ -705,5 +691,32 @@ module weft_shuttle (
             rx_cnt <= rx_cnt + {2'd0, rx_push} - {2'd0, (rx_pop && !rx_empty)};
         end
     end
+
+`ifdef FORMAL_SHUTTLE
+    // Invariants that hold for every program, every configuration and every
+    // pin and host input, proved by induction.
+    reg f_init = 1'b1;
+    always @(posedge clk) f_init <= 1'b0;
+    always @(*) if (f_init) assume (!rst_n);
+    always @(*) begin
+        if (!f_init) begin
+            // The FIFOs never overflow or underflow, and the pointers agree
+            // with the counts.
+            assert (tx_cnt <= 3'd4);
+            assert (rx_cnt <= 3'd4);
+            assert (tx_wr == tx_rd + tx_cnt[1:0]);
+            assert (rx_wr == rx_rd + rx_cnt[1:0]);
+            assert (!(tx_pop && tx_empty));
+            assert (!(rx_push && rx_full));
+            // The shift register counts stay within 32 bits.
+            assert (osr_left <= 6'd32);
+            assert (isr_cnt <= 6'd32);
+            // At most 8 CRC bits wait for the next cycle.
+            assert (crc_pend_n <= 4'd8);
+            // An instruction only runs on a tick with no delay left.
+            assert (!exec || (tick && dly == 5'd0));
+        end
+    end
+`endif
 
 endmodule
