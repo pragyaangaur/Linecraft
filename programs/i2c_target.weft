@@ -1,0 +1,61 @@
+; I2C target (peripheral) that accepts writes to one address.
+; Address matching uses the CRC unit. A CRC of width 8 is a bijection on
+; 8 bit messages (multiplying by x^8 modulo a polynomial with a constant
+; term is invertible), so after the address byte is fed in, CRCOK holds
+; exactly when the byte is (address << 1) with the write bit clear. The
+; host writes that CRC value into CRC_CHECK, and the toolchain computes it.
+; Matching bytes are ACKed and data bytes are ACKed and pushed. Other
+; addresses are ignored until the next START.
+; STOP is recognised on the first bit of a byte: if that bit was 0 and
+; SDA rises while SCL is still high, the controller sent STOP.
+; Pins: SDA = IN_BASE = SET_BASE (open drain through pin direction),
+; SCL is the define and also JMP_PIN. MATCH must test SDA and SCL both
+; high: MATCH_MASK = MATCH_VAL = (1 << SDA) | (1 << SCL).
+; Config: SET_COUNT = 1, IN_RIGHT = 0, CRC_SRC = receive, CRC_WIDTH = 8,
+; CRC_POLY = 0x07, CRC_CHECK from weft.protocols.i2c_target.
+.program i2c_target
+.define SCL 9
+    set pins, 0
+    set pindirs, 0
+idle:
+    wait 1 gpio SCL
+    wait 0 pin 0                    ; SDA falls
+    jmp pin start                   ; with SCL still high: START
+    jmp idle
+start:
+    ctl crc
+    set x, 7
+abit:
+    wait 0 gpio SCL
+    wait 1 gpio SCL
+    in pins, 1                      ; address and R/W bits, fed to the CRC
+    jmp x-- abit
+    jmp crcok ack
+    jmp idle                        ; not for us
+ack:
+    wait 0 gpio SCL
+    set pindirs, 1                  ; ACK: hold SDA low for the ninth clock
+    wait 1 gpio SCL
+    wait 0 gpio SCL
+    set pindirs, 0
+    mov isr, null
+byte:
+    wait 1 gpio SCL
+    in pins, 1                      ; first bit of the next byte
+    mov x, isr
+    jmp x-- one                     ; it was a 1, so this cannot be STOP
+poll:
+    jmp !pin rest                   ; SCL fell: a normal data bit
+    jmp !match poll
+    jmp idle                        ; SDA rose with SCL high: STOP
+one:
+    wait 0 gpio SCL
+rest:
+    set x, 6
+dbit:
+    wait 1 gpio SCL
+    in pins, 1
+    wait 0 gpio SCL
+    jmp x-- dbit
+    push noblock
+    jmp ack

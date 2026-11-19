@@ -18,6 +18,7 @@ def test_every_preset_builds():
         "spi_master": dict(shuttle=0, sck_pin=2, miso_pin=0, sck_hz=1e6, clk_hz=CLK, mode=3),
         "spi_target": dict(shuttle=0, sck_pin=1, mosi_pin=2, cs_pin=3, miso_pin=0),
         "i2c": dict(shuttle=2, sda_pin=8, scl_hz=400e3, clk_hz=CLK, read=True),
+        "i2c_target": dict(shuttle=1, sda_pin=10, address=0x42),
         "usb_ls_tx": dict(shuttle=0, dminus_pin=8, clk_hz=CLK),
         "usb_ls_rx": dict(shuttle=1, dminus_pin=8, clk_hz=CLK, origin=32),
         "can_tx": dict(shuttle=3, tx_pin=4, bitrate=500e3, clk_hz=CLK),

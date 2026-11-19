@@ -77,6 +77,18 @@ def i2c(shuttle, sda_pin, scl_hz, clk_hz, read=False, origin=0):
     return _done(shuttle, cfg, program("i2c_read" if read else "i2c_write", origin))
 
 
+def i2c_target(shuttle, sda_pin, address, origin=0):
+    """SCL is sda_pin + 1. The CRC unit matches the address byte (see programs/i2c_target.weft)."""
+    from .crc import crc_reference
+    if not 8 <= sda_pin <= 14:
+        raise ValueError("I2C needs two bidirectional pins, 8 to 15")
+    both = (1 << sda_pin) | (1 << (sda_pin + 1))
+    cfg = ShuttleConfig(in_base=sda_pin, set_base=sda_pin, set_count=1, jmp_pin=sda_pin + 1,
+                        match_mask=both, match_val=both, crc_src=CRC_RX, crc_width=8, crc_poly=0x07,
+                        crc_check=crc_reference(CATALOGUE["CRC-8/SMBUS"], bytes([address << 1])))
+    return _done(shuttle, cfg, program("i2c_target", origin, {"SCL": sda_pin + 1}))
+
+
 USB_CRC = weft_settings(CATALOGUE["CRC-16/USB"])
 
 
@@ -116,5 +128,5 @@ def ws2812(shuttle, data_pin, clk_hz, origin=0):
     return _done(shuttle, cfg, program("ws2812", origin))
 
 
-PRESETS = {f.__name__: f for f in (uart_tx, uart_tx_parity, uart_rx, spi_master, spi_target, i2c,
+PRESETS = {f.__name__: f for f in (uart_tx, uart_tx_parity, uart_rx, spi_master, spi_target, i2c, i2c_target,
                                     usb_ls_tx, usb_ls_rx, can_tx, ws2812)}

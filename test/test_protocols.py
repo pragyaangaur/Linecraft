@@ -672,3 +672,77 @@ async def test_four_protocols_at_once(dut):
     assert await host.read(0x00A, 3) == [0, 0, 0]
     bits = [1 if w > 28 else 0 for w in await ws_cap]
     assert [sum(bits[8 * i + k] << (7 - k) for k in range(8)) for i in range(2)] == ws_data
+
+
+@cocotb.test()
+async def test_i2c_target(dut):
+    """The chip as an I2C peripheral at address 0x42, driven by a controller model on the open drain bus.
+
+    The address is matched by the CRC unit. A write to another address must be ignored.
+    """
+    from weft.protocols import i2c_target
+    host = await start(dut)
+    await host.write_many(i2c_target(0, sda_pin=8, address=0x42))
+    await host.write(0x001, 0x1)
+    ctrl = {"sda": 0, "scl": 0}              # 1 means the controller pulls the line low
+    half = 24
+
+    async def resolve():
+        while True:
+            await RisingEdge(dut.clk)
+            oe, out = int(dut.uio_oe.value), int(dut.uio_out.value)
+            chip_sda = (oe & 1) and not (out & 1)
+            sda = 0 if ctrl["sda"] or chip_sda else 1
+            scl = 0 if ctrl["scl"] else 1
+            dut.uio_in.value = sda | (scl << 1)
+
+    def sda_now():
+        return int(dut.uio_in.value) & 1
+
+    async def wait(n=half):
+        await ClockCycles(dut.clk, n)
+
+    async def start_cond():
+        ctrl["sda"], ctrl["scl"] = 0, 0
+        await wait()
+        ctrl["sda"] = 1                      # SDA falls while SCL is high
+        await wait()
+        ctrl["scl"] = 1
+
+    async def write_byte(b):
+        for i in range(7, -1, -1):
+            ctrl["sda"] = 0 if (b >> i) & 1 else 1
+            await wait()
+            ctrl["scl"] = 0
+            await wait()
+            ctrl["scl"] = 1
+        ctrl["sda"] = 0                      # release for the ACK
+        await wait()
+        ctrl["scl"] = 0
+        await wait(half // 2)
+        ack = sda_now() == 0
+        await wait(half // 2)
+        ctrl["scl"] = 1
+        return ack
+
+    async def stop_cond():
+        ctrl["sda"] = 1
+        await wait()
+        ctrl["scl"] = 0
+        await wait()
+        ctrl["sda"] = 0                      # SDA rises while SCL is high
+
+    cocotb.start_soon(resolve())
+    await wait(4 * half)
+    await start_cond()
+    acks = [await write_byte(b) for b in (0x42 << 1, 0x10, 0x81)]
+    await stop_cond()
+    await wait(4 * half)
+    await start_cond()
+    other = await write_byte(0x55 << 1)
+    await stop_cond()
+    await wait(4 * half)
+    assert acks == [True, True, True], acks
+    assert other is False
+    assert await host.read(0x008, 2) == [0x10, 0x81]
+    assert ((await host.read(0x006))[0] & 7) == 0

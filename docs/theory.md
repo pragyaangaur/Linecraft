@@ -55,7 +55,11 @@ The next set is the set of targets of those edges. Partition refinement (Moore's
 
 For the six built-in codes, the synthesised receivers have the same number of states as the hand-written ones. For biphase mark code, which was never written by hand, the synthesised receiver runs on the chip.
 
-## 4. Zero drift in the fractional divider
+## 4. Address matching with a CRC
+
+A CRC of width W with a polynomial g that has a constant term maps a W bit message m(x) to m(x) x^W mod g(x). Since g(0) = 1, x is invertible modulo g, so this map is a bijection on messages of W bits or fewer. Two different 8 bit address bytes therefore always leave different values in an 8 bit CRC register, and `JMP CRCOK` with `CRC_CHECK` set to the CRC of the expected byte is an exact equality test. `programs/i2c_target.weft` uses this to recognise its own I2C address without a compare instruction.
+
+## 5. Zero drift in the fractional divider
 
 The divider holds a count `cnt` and an 8 bit accumulator `acc`. On a tick it adds `DIV_FRAC` to `acc`, and the next period is N + c cycles, where c is the carry out. Let E be the number of cycles since reset and T the sum of 256N + `DIV_FRAC` over all ticks so far. Then on every cycle
 

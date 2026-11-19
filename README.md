@@ -113,6 +113,7 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | SPI target, mode 0 | `spi_target.weft` | An SPI controller model clocks the chip from its input pins at clk / 16 and checks MISO and the received bytes |
 | I2C controller write | `i2c_write.weft` | An open drain I2C target model that checks START, address, data and STOP and ACKs or NACKs |
 | I2C controller read | `i2c_read.weft` | The same target model sends bytes and records the controller's ACK on every byte but the last and the NACK on the last |
+| I2C target (peripheral) | `i2c_target.weft` | A controller model on the open drain bus writes to the chip's address and to another one. The chip ACKs only its own address, pushes the data and recognises STOP. The address is matched by the CRC unit, because a CRC of width 8 is a bijection on 8 bit messages |
 | PS/2 receive (host side) | `ps2_rx.weft` | A device model clocks frames in. Odd parity is checked with the same 1 bit CRC, now on the receive side, and a bad parity bit raises IRQ 0 |
 | JTAG | `jtag.weft` | A TAP model written from IEEE 1149.1 that follows TMS through all 16 states. The test resets the TAP, moves to Shift-DR and reads a 32 bit IDCODE |
 | USB low speed transmit | `usb_ls_tx.weft` | A decoder written from the USB specification that undoes NRZI and stuffing and checks the CRC16 |
