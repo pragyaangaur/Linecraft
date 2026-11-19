@@ -695,11 +695,13 @@ module weft_shuttle (
 `ifdef FORMAL_SHUTTLE
     // Invariants that hold for every program, every configuration and every
     // pin and host input, proved by induction.
-    reg f_init = 1'b1;
-    always @(posedge clk) f_init <= 1'b0;
-    always @(*) if (f_init) assume (!rst_n);
+    // f_started is 0 in the first cycle, which is a reset cycle. It starts
+    // at 0 so that tools which zero every flop at the start agree on it.
+    reg f_started = 1'b0;
+    always @(posedge clk) f_started <= 1'b1;
+    always @(*) if (!f_started) assume (!rst_n);
     always @(*) begin
-        if (!f_init) begin
+        if (f_started) begin
             // The FIFOs never overflow or underflow, and the pointers agree
             // with the counts.
             assert (tx_cnt <= 3'd4);
@@ -715,6 +717,32 @@ module weft_shuttle (
             assert (crc_pend_n <= 4'd8);
             // An instruction only runs on a tick with no delay left.
             assert (!exec || (tick && dly == 5'd0));
+`ifdef FORMAL_SANITY
+            // Deliberately false: a full TX FIFO is reachable. The proof
+            // script expects this one to fail, which shows the setup can
+            // find real counterexamples.
+            assert (tx_cnt <= 3'd3);
+`endif
+        end
+    end
+
+    // A shuttle that is disabled and not restarted keeps its program state,
+    // whatever the pins and the host's FIFO traffic do.
+    reg        f_hold;
+    reg [5:0]  f_pc;
+    reg [15:0] f_x, f_y;
+    reg [31:0] f_osr, f_isr;
+    reg [3:0]  f_fst;
+    reg [4:0]  f_dly;
+    always @(posedge clk) begin
+        f_hold <= f_started && rst_n && !en && !restart;
+        f_pc <= pc;  f_x <= x;  f_y <= y;  f_osr <= osr;  f_isr <= isr;
+        f_fst <= fst;  f_dly <= dly;
+    end
+    always @(*) begin
+        if (f_started && f_hold) begin
+            assert (pc == f_pc && x == f_x && y == f_y && osr == f_osr && isr == f_isr);
+            assert (fst == f_fst && dly == f_dly);
         end
     end
 `endif
