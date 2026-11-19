@@ -1,0 +1,18 @@
+; JTAG controller. Every TCK cycle takes the next two bits from the TX FIFO
+; as {TDI, TMS} and returns TDO, so the host drives the TAP state machine
+; and the data registers with one generic stream. Four TCK cycles fit in a
+; byte: bits 1:0 are the first cycle's TMS and TDI, bits 3:2 the second
+; and so on. TDO bits are packed into RX bytes, first cycle in bit 0.
+; TMS and TDI change while TCK is low, and TDO is sampled on the rising edge.
+; One TCK period is 4 ticks.
+; Pins: TCK = SIDE_BASE = SET_BASE, TMS = OUT_BASE = TCK + 1, TDI = TCK + 2,
+; TDO = IN_BASE.
+; Config: side-set 1 pin, SET_COUNT = 3, OUT_RIGHT = 1, IN_RIGHT = 1,
+; AUTOPULL = 1 with PULL_THRESH = 8, AUTOPUSH = 1 with PUSH_THRESH = 8.
+.program jtag
+.side_set 1
+    set pindirs, 0b111  side 0
+.wrap_target
+    out pins, 2         side 0 [1]  ; TMS and TDI while TCK is low
+    in pins, 1          side 1 [1]  ; TDO at the rising edge
+.wrap

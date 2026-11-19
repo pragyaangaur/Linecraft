@@ -247,3 +247,53 @@ def can_decode(samples, cycles_per_bit):
     tail = raw[i:i + 10]
     assert tail == [1] * 10, f"delimiters and EOF should be recessive, got {tail}"
     return ident, data
+
+
+class JtagTap:
+    """A JTAG TAP from IEEE 1149.1 with a 4 bit IR, BYPASS and a 32 bit IDCODE register.
+
+    It follows TCK on the chip's outputs, moves through the 16 state TAP controller on each rising edge, shifts the selected register, and drives TDO on the falling edge.
+    """
+
+    NEXT = {
+        "TLR": ("RTI", "TLR"), "RTI": ("RTI", "SELDR"), "SELDR": ("CAPDR", "SELIR"),
+        "CAPDR": ("SHDR", "EX1DR"), "SHDR": ("SHDR", "EX1DR"), "EX1DR": ("PAUDR", "UPDR"),
+        "PAUDR": ("PAUDR", "EX2DR"), "EX2DR": ("SHDR", "UPDR"), "UPDR": ("RTI", "SELDR"),
+        "SELIR": ("CAPIR", "TLR"), "CAPIR": ("SHIR", "EX1IR"), "SHIR": ("SHIR", "EX1IR"),
+        "EX1IR": ("PAUIR", "UPIR"), "PAUIR": ("PAUIR", "EX2IR"), "EX2IR": ("SHIR", "UPIR"),
+        "UPIR": ("RTI", "SELDR"),
+    }
+    IDCODE_IR, BYPASS_IR = 0b0001, 0b1111
+
+    def __init__(self, dut, tck, tms, tdi, tdo, drive, idcode):
+        self.dut, self.tck, self.tms, self.tdi, self.tdo = dut, tck, tms, tdi, tdo
+        self.drive, self.idcode = drive, idcode
+        self.state, self.ir, self.shift, self.nbits = "TLR", self.IDCODE_IR, 0, 0
+        self.out = 0
+        self.dr_captures = []
+
+    async def run(self):
+        prev = 0
+        while True:
+            await RisingEdge(self.dut.clk)
+            uo = int(self.dut.uo_out.value)
+            tck, tms, tdi = bit(uo, self.tck), bit(uo, self.tms), bit(uo, self.tdi)
+            if tck and not prev:                       # rising edge: sample and move
+                if self.state in ("SHDR", "SHIR"):
+                    self.shift = (self.shift >> 1) | (tdi << (self.nbits - 1))
+                self.state = self.NEXT[self.state][tms]
+                if self.state == "TLR":
+                    self.ir = self.IDCODE_IR
+                elif self.state == "CAPDR":
+                    self.nbits = 32 if self.ir == self.IDCODE_IR else 1
+                    self.shift = self.idcode if self.ir == self.IDCODE_IR else 0
+                elif self.state == "CAPIR":
+                    self.nbits, self.shift = 4, 0b0001
+                elif self.state == "UPIR":
+                    self.ir = self.shift & 0xF
+                elif self.state == "UPDR":
+                    self.dr_captures.append(self.shift)
+            if prev and not tck:                       # falling edge: next TDO bit
+                self.out = self.shift & 1 if self.state in ("SHDR", "SHIR") else 0
+                self.drive(self.out << self.tdo, 1 << self.tdo)
+            prev = tck

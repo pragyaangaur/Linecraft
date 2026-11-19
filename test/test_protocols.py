@@ -530,3 +530,45 @@ async def test_biphase_mark_from_a_transmit_rule(dut):
     await run
     got = await host.read(0x009, 4)
     assert got == data, [hex(g) for g in got]
+
+
+# ----------------------------------------------------------------------
+# JTAG
+# ----------------------------------------------------------------------
+
+def jtag_stream(cycles):
+    """Pack (tms, tdi) pairs into bytes, four TCK cycles per byte, first cycle in bits 1:0."""
+    cycles = cycles + [(0, 0)] * (-len(cycles) % 4)
+    return [sum((tms | tdi << 1) << (2 * k) for k, (tms, tdi) in enumerate(cycles[i:i + 4]))
+            for i in range(0, len(cycles), 4)]
+
+
+@cocotb.test()
+async def test_jtag_idcode(dut):
+    """Reset the TAP, go to Shift-DR and read the 32 bit IDCODE, checked by a TAP model from IEEE 1149.1."""
+    from peers import JtagTap
+    host = await start(dut)
+    cfg = ShuttleConfig(side_base=2, set_base=2, set_count=3, out_base=3, in_base=0,
+                        out_right=True, in_right=True, autopull=True, autopush=True)
+    cfg.set_ratio(2)
+    await load(host, 0, cfg, program("jtag"))
+    idcode = 0x4BA00477
+    tap = JtagTap(dut, tck=2, tms=3, tdi=4, tdo=0, drive=host.set_pins, idcode=idcode)
+    cocotb.start_soon(tap.run())
+    await host.write(0x001, 0x1)
+    # Test-Logic-Reset, Run-Test/Idle, Select-DR, Capture-DR, Shift-DR, then 32 shifts
+    # with TMS high on the last one (to Exit1-DR), then Update-DR and Run-Test/Idle.
+    cycles = [(1, 0)] * 5 + [(0, 0), (1, 0), (0, 0), (0, 0)] + [(0, 0)] * 31 + [(1, 0), (1, 0), (0, 0)]
+    cycles += [(0, 0)] * (-len(cycles) % 8)        # whole TDO bytes, staying in Run-Test/Idle
+    stream = jtag_stream(cycles)
+    tdo_bytes = []
+    for i in range(0, len(stream), 4):
+        await host.write(0x008, stream[i:i + 4])
+        await ClockCycles(dut.clk, 140)
+        level = (await host.read(0x006))[0] & 7
+        tdo_bytes += await host.read(0x008, level) if level else []
+    assert len(tdo_bytes) == len(cycles) // 8
+    tdo_bits = [(b >> k) & 1 for b in tdo_bytes for k in range(8)]
+    shifted = tdo_bits[9:9 + 32]
+    assert sum(b << k for k, b in enumerate(shifted)) == idcode, hex(sum(b << k for k, b in enumerate(shifted)))
+    assert tap.state == "RTI" and tap.dr_captures, tap.state
