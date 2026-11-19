@@ -87,14 +87,14 @@ and the best choice s = 1/(2k) gives |d| < (1/(2k) - q/M) / R. R comes from the 
 
 | Sync phase P | Predicted range | Measured range |
 | --- | --- | --- |
-| 1 | -5.86% to +0.43% | -6.20% to +0.70% |
-| 3 | -5.00% to +1.29% | -5.30% to +1.60% |
+| 1 | -5.86% to +0.43% | -6.10% to +0.80% |
+| 3 | -5.00% to +1.29% | -5.20% to +1.60% |
 | 5 | -4.14% to +2.14% | -4.40% to +2.40% |
 | 7 | -3.29% to +3.00% | -3.60% to +3.30% |
-| 9 | -2.43% to +3.86% | -2.70% to +4.20% |
+| 9 | -2.43% to +3.86% | -2.70% to +4.10% |
 | 11 | -1.57% to +4.71% | -1.90% to +5.00% |
 
-For all six sync phases the window moves exactly as predicted, and each measured edge sits between 0.27% and 0.34% outside the predicted one. The bound is therefore safe and close to tight. At P = 7 the receiver tolerates about 3% either way, which is twice the 1.5% that the USB specification allows a low speed device.
+For all six sync phases the window moves exactly as predicted, and each measured edge sits between 0.20% and 0.37% outside the predicted one. The bound is therefore safe and close to tight. At P = 7 the receiver tolerates about 3% either way, which is twice the 1.5% that the USB specification allows a low speed device.
 
 The first version of this experiment used a symmetric bound and a sync phase chosen by eye, and it failed on one side. Following that failure up gave the asymmetric form above. In this design the sample point after an edge comes from the synchronizer latency as much as from `SYNC_PHASE`.
 
@@ -114,7 +114,10 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | USB low speed transmit | `usb_ls_tx.weft` | A decoder written from the USB specification that undoes NRZI and stuffing and checks the CRC16 |
 | USB low speed receive | `usb_ls_rx.weft` | Loopback from the transmitter, with clock recovery, destuffing and a CRC16 residue check on the chip |
 | CAN 2.0A transmit | `can_tx.weft` | A decoder written from ISO 11898 that checks stuff bits, CRC-15, delimiters and EOF |
+| Biphase mark code (S/PDIF and AES3 line code), loopback | `bmc_tx.weft`, `bmc_rx.weft` | The code exists only as a 4 state transmit rule written inside the test. The receiver is synthesised, the round trip is proved, and the chip sends and receives four bytes through the loopback |
 | WS2812 LED data | `ws2812.weft` | A pulse width decoder that checks each high time against the 2 and 7 tick targets |
+
+The biphase mark row is the flexibility test in miniature. Weft was not designed with that code in mind, and adding it took a transmit rule of six lines. The toolchain derived the receiver, proved the pair correct, found R = 2, and the two generic programs ran it on the chip.
 
 The USB and CAN transmitters use the same two blocks with a different table and polynomial. Both keep a fixed number of ticks per symbol right up to the last stuffed bit by testing the `MORE` jump condition, which is true while an `OUT` would find data in the OSR, in the FIFO or pending in the line coder.
 
