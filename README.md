@@ -4,6 +4,17 @@ A small chip that learns new wire protocols from software, built for the Jane St
 
 Weft is a protocol emulator for the Tiny Tapeout IHP 130 nm shuttle in an 8x4 tile slot. It has four small processors called shuttles that move bits between pins and FIFOs with exact cycle timing, in the spirit of the RP2040 PIO. Each shuttle also carries two pieces of hardware that a host can reprogram: a line coder, which is a finite state transducer stored as a table, and a CRC unit with any width and polynomial up to 32 bits. The toolchain can prove things about a line coder table before it is loaded, including how much clock error a receiver built on it will survive. A cycle accurate experiment confirms that prediction to within half a percent.
 
+## At a glance
+
+| What | Where |
+| --- | --- |
+| 17 protocol programs, each checked against an independent peer model: UART (with parity and at 115200 baud), SPI controller in four modes, SPI target, I2C controller write and read, I2C target, USB low speed transmit and receive, CAN 2.0A, JTAG, PS/2, 1-Wire, WS2812, biphase mark, and four protocols at once | [Protocols](#protocols) |
+| A line coder that runs any 16 state line code from a table, with exact analysis of the table and receiver synthesis from the transmit rule | [Line codes as data](#line-codes-as-data), [Receivers from transmitters](#receivers-from-transmitters) |
+| A bound on the clock error a resynchronising receiver survives, confirmed to within 0.4 percent at six sync phases | [Clock error](#how-much-clock-error-can-a-receiver-survive) |
+| RTL and an independently written Python model held equal on every pin and register in random lockstep runs, with coverage and concurrent host traffic | [Verification](#verification) |
+| Formal proofs of divider zero drift and shuttle invariants, with a check that the proofs are not vacuous | [Verification](#verification) |
+| The arguments behind the mathematics | [docs/theory.md](docs/theory.md) |
+
 ## The idea
 
 Most serial protocols are built from three layers.
