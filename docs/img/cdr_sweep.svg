@@ -17,11 +17,11 @@
 <text x="571.4" y="322" text-anchor="middle">+6%</text>
 <text x="60" y="58" text-anchor="end">P = 1</text>
 <rect x="114.1" y="44" width="242.4" height="20" fill="#9ec5ea"/>
-<circle cx="100.9" cy="54" r="5" fill="#1f4e79"/>
-<circle cx="367.0" cy="54" r="5" fill="#1f4e79"/>
+<circle cx="104.7" cy="54" r="5" fill="#1f4e79"/>
+<circle cx="370.9" cy="54" r="5" fill="#1f4e79"/>
 <text x="60" y="104" text-anchor="end">P = 3</text>
 <rect x="147.1" y="90" width="242.4" height="20" fill="#9ec5ea"/>
-<circle cx="135.6" cy="100" r="5" fill="#1f4e79"/>
+<circle cx="139.4" cy="100" r="5" fill="#1f4e79"/>
 <circle cx="401.7" cy="100" r="5" fill="#1f4e79"/>
 <text x="60" y="150" text-anchor="end">P = 5</text>
 <rect x="180.2" y="136" width="242.4" height="20" fill="#9ec5ea"/>
@@ -34,7 +34,7 @@
 <text x="60" y="242" text-anchor="end">P = 9</text>
 <rect x="246.3" y="228" width="242.4" height="20" fill="#9ec5ea"/>
 <circle cx="235.9" cy="238" r="5" fill="#1f4e79"/>
-<circle cx="502.0" cy="238" r="5" fill="#1f4e79"/>
+<circle cx="498.1" cy="238" r="5" fill="#1f4e79"/>
 <text x="60" y="288" text-anchor="end">P = 11</text>
 <rect x="279.4" y="274" width="242.4" height="20" fill="#9ec5ea"/>
 <circle cx="266.7" cy="284" r="5" fill="#1f4e79"/>

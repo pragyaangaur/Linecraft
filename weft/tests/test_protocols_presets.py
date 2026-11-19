@@ -48,8 +48,9 @@ def test_usb_presets_loop_back_in_the_model():
     chip.write(0x001, 0x3)
     payload = [0xC3, 0x12, 0xFF, 0xFF]
     queue, got, out = [0x80] + payload, [], (0, 0, 0)
-    for _ in range(6000):
-        if queue and chip.read(0x005) & 1:
+    for t in range(6000):
+        # Give the receiver time to arm before the packet starts.
+        if t > 300 and queue and chip.read(0x005) & 1:
             chip.write(0x008, queue.pop(0))
         while (chip.read(0x006) >> 4) & 7:
             got.append(chip.read(0x009))

@@ -72,6 +72,8 @@ def trial(delta, payloads, sync_phase=5):
     chip = Chip()
     chip.write_all(setup(delta, sync_phase))
     chip.write(0x001, 0x3)
+    for _ in range(300):                              # let the receiver arm on an idle line
+        chip.step(0x80, 0b01)
     for payload in payloads:
         chip.write(0x003, 0xFF)                       # clear IRQ flags
         got, irq = send(chip, payload)

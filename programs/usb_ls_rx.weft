@@ -16,6 +16,7 @@ start:
     ctl crc fst
     mov isr, null
     set x, 14
+    wait 1 pin 0                    ; idle J first, so a stale 0 cannot start a packet
     wait 0 pin 0                    ; first K of SYNC, at 1/4 of bit 0
 hdr:
     in fst, 1                       ; 3/4
