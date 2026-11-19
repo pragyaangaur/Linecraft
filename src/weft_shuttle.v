@@ -1,11 +1,11 @@
-// One Loom shuttle: a small cycle-exact processor with its own divider,
+// One Weft shuttle: a small cycle-exact processor with its own divider,
 // FIFOs, line coder (finite state transducer) and CRC unit.
 // The behaviour follows docs/spec.md. Comments point at the spec where a
 // choice is not obvious from the code.
 
 `default_nettype none
 
-module loom_shuttle (
+module weft_shuttle (
     input  wire        clk,
     input  wire        rst_n,
     input  wire        en,          // shuttle enable from the host
@@ -198,7 +198,10 @@ module loom_shuttle (
     reg [4:0]  dly;
     reg [3:0]  fst;
     reg        fst_err;
-    reg [31:0] crc;
+    // The CRC register is kept left aligned (crc_al[31] is bit W-1 of the
+    // spec register) so the feedback bit is always bit 31. This avoids a
+    // 32 to 1 mux per CRC step and gives the same visible behaviour.
+    reg [31:0] crc_al;
     reg [7:0]  crc_pend_bits;          // bits waiting to enter the CRC, in feed order
     reg [3:0]  crc_pend_n;             // how many of them (0 to 8)
 
@@ -249,9 +252,12 @@ module loom_shuttle (
     wire [5:0]  push_th  = count32(push_thresh);
     wire [5:0]  crc_w    = (crc_width == 6'd0 || crc_width > 6'd32) ? 6'd32 : crc_width;
     wire [31:0] crc_mask = mask_n(crc_w);
-    wire [31:0] crc_init = crc_init_ones ? crc_mask : 32'd0;
+    wire [5:0]  crc_sh   = 6'd32 - crc_w;               // 0 when W = 32
+    wire [31:0] crc      = crc_al >> crc_sh;             // spec view of the register
+    wire [31:0] crc_init = crc_init_ones ? (32'hFFFF_FFFF << crc_sh) : 32'd0;
+    wire [31:0] poly_al  = (crc_poly & crc_mask) << crc_sh;
     wire [31:0] crc_xo   = crc_xorout_ones ? crc_mask : 32'd0;
-    wire [31:0] crc_res  = (crc ^ crc_xo) & crc_mask;
+    wire [31:0] crc_res  = crc ^ crc_xo;
 
     // Line coder entries for the current state.
     wire [6:0] fe0   = fst_tab[{fst, 1'b0}];
@@ -274,7 +280,7 @@ module loom_shuttle (
             4'd9:  cond = ~tx_empty;
             4'd10: cond = ((pins & match_mask) == match_val);
             4'd11: cond = ((pins & match_mask) != match_val);
-            4'd12: cond = ((crc & crc_mask) == (crc_check & crc_mask));
+            4'd12: cond = (crc == (crc_check & crc_mask));
             4'd13: cond = fst_err;
             4'd14: cond = fpend;
             default: cond = ~rx_full;
@@ -365,7 +371,7 @@ module loom_shuttle (
     end
     // CRC laid out so that r[W-1] leaves first.
     wire [31:0] crc_tx = out_right ? (rev32(crc_res) >> (6'd32 - crc_w))
-                                   : (crc_res << (6'd32 - crc_w));
+                                   : (crc_res << crc_sh);
 
     // ------------------------------------------------------------------
     // Stall
@@ -606,18 +612,14 @@ module loom_shuttle (
         input [7:0]  bits;
         input [3:0]  n;
         input [31:0] poly;
-        input [31:0] msk;
-        input [5:0]  w;
         integer j;
         reg fb;
-        reg [5:0] top;
         begin
-            top = w - 6'd1;
             crc_step = c;
             for (j = 0; j < 8; j = j + 1) begin
                 if (j < n) begin
-                    fb = crc_step[top[4:0]] ^ bits[j];
-                    crc_step = ((crc_step << 1) & msk) ^ (fb ? poly : 32'd0);
+                    fb = crc_step[31] ^ bits[j];
+                    crc_step = (crc_step << 1) ^ (fb ? poly : 32'd0);
                 end
             end
         end
@@ -645,7 +647,7 @@ module loom_shuttle (
             dly <= 5'd0;
             fst <= fst_init;
             fst_err <= 1'b0;
-            crc <= crc_init;
+            crc_al <= crc_init;
             crc_pend_bits <= 8'd0;
             crc_pend_n <= 4'd0;
         end else begin
@@ -656,9 +658,9 @@ module loom_shuttle (
             fst <= fst_n;
             fst_err <= fst_err_n;
             if (crc_reset)
-                crc <= crc_init;
+                crc_al <= crc_init;
             else if (crc_pend_n != 4'd0)
-                crc <= crc_step(crc, crc_pend_bits, crc_pend_n, crc_poly, crc_mask, crc_w);
+                crc_al <= crc_step(crc_al, crc_pend_bits, crc_pend_n, poly_al);
             crc_pend_bits <= feed_bits;
             crc_pend_n <= feed_n;
         end

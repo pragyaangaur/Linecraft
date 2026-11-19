@@ -5,7 +5,7 @@
 
 `default_nettype none
 
-module loom_host (
+module weft_host (
     input  wire        clk,
     input  wire        rst_n,
     input  wire        csn,         // synchronized CSn
