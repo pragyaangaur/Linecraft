@@ -57,6 +57,20 @@ The analyses are graph algorithms on the encoder's configuration graph.
 
 The CAN row shows why the exact analysis is useful. The worst case rate is 5/4, which is higher than the 6/5 that a quick reading of the rule suggests, because a stuffed bit can start a new run of five.
 
+## Receivers from transmitters
+
+Writing a decoder table by hand is where line code bugs live, so the toolchain derives it. `weft.synth` takes only the transmit table. The receiver's state is the set of transmitter configurations that agree with every symbol seen so far, which is the subset construction from automata theory. On each symbol the receiver emits a bit only if every surviving transmitter step used that same bit. It emits nothing if none of them used a bit, and it raises the error flag if no transmitter could have sent the symbol. Partition refinement then merges equivalent states, and the round trip checker proves the result.
+
+| Code | Hand-written receiver | Synthesised receiver | Round trip |
+| --- | --- | --- | --- |
+| NRZI | 2 states | 2 states | proved |
+| USB | 14 states | 14 states | proved |
+| CAN | 11 states | 11 states | proved |
+| Manchester | 3 states | 3 states | proved |
+| HDLC | 6 states | 6 states | proved |
+
+The synthesised USB receiver is also tested on the chip, where it receives a looped back packet and passes the CRC check. When a code cannot be decoded one symbol at a time, synthesis says so instead of producing a wrong table. A test covers a code that sends each bit only after a symbol has already committed to it.
+
 ## How much clock error can a receiver survive?
 
 A receiver that resyncs on every edge only drifts while the line holds still, and the line coder bounds how long that is. If a shuttle ticks k times per bit and samples on one of those ticks, then after an edge its tick positions sit at s, s + 1/k, and so on. After a resync the program can land on any of them, so the earliest and latest positions are the ones that matter. With R symbols at most between edges, M clock cycles per symbol and q cycles of uncertainty from the synchronizer and the fractional divider, the receiver works for every clock offset d with
@@ -107,7 +121,7 @@ Two separate implementations were written from [docs/spec.md](docs/spec.md): the
 
 - **Lockstep random testing** ([test/test_lockstep.py](test/test_lockstep.py)). Each trial builds a random 64 instruction program and random configurations, line coder tables, CRC settings and FIFO contents for all four shuttles. It loads them into the RTL through the SPI port and into the model through its register interface, then drives random pin inputs. On every clock cycle it compares every output pin, the IRQ flags and fifteen architectural registers of every shuttle. This found one real gap in the spec: the meaning of a count field above 32, which the RTL and the model read differently. The spec now defines it.
 - **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against peer models and decoders in [test/peers.py](test/peers.py) that share no code with the Weft toolchain.
-- **Model and toolchain tests** ([weft/tests](weft/tests)), 149 of them. They cover the assembler round trip, every catalogue CRC (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8, CRC-7, CRC-16/CCITT) sent bit-exact on the wire through `MOV OSR, CRC`, and the line code analyses.
+- **Model and toolchain tests** ([weft/tests](weft/tests)), 169 of them. They cover the assembler round trip, every catalogue CRC (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8, CRC-7, CRC-16/CCITT) sent bit-exact on the wire through `MOV OSR, CRC`, and the line code analyses.
 
 Formal proofs are not done yet. The design has not run on an FPGA either.
 
@@ -131,6 +145,6 @@ The cocotb tests need Icarus Verilog. `LOCKSTEP_TRIALS`, `LOCKSTEP_CYCLES` and `
 | `src/` | Verilog: `project.v` (top level), `weft_shuttle.v`, `weft_host.v` |
 | `docs/spec.md` | The architecture, instruction set and register map |
 | `programs/` | Protocol programs in Weft assembly |
-| `weft/` | Assembler, cycle accurate model, configuration helper, line codes, CRC catalogue and analysis |
+| `weft/` | Assembler, cycle accurate model, configuration helper, line codes, CRC catalogue, analysis and receiver synthesis |
 | `test/` | cocotb tests, host SPI driver and peer models |
 | `experiments/` | The clock tolerance sweep |
