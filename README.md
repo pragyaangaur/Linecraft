@@ -148,7 +148,7 @@ python -m weft.analysis
 python experiments/cdr_sweep.py --plot sweep.svg
 ```
 
-The cocotb tests need Icarus Verilog. `LOCKSTEP_TRIALS`, `LOCKSTEP_CYCLES` and `LOCKSTEP_SEED` control the random lockstep run. Make does not handle a project path that contains spaces, so run it from a path without them.
+`scripts/check_all.sh` runs all of it, including the formal proofs, and works from a path with spaces. The cocotb tests need Icarus Verilog, and the proofs need Yosys and z3. `LOCKSTEP_TRIALS`, `LOCKSTEP_CYCLES` and `LOCKSTEP_SEED` control the random lockstep run. Make does not handle a project path that contains spaces, so run it from a path without them.
 
 ## Using the chip
 
