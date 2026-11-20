@@ -75,6 +75,7 @@ class Coverage:
 
 
 COVERAGE = Coverage()
+REWRITES = [0, 0]              # instruction bytes written while shuttles ran, and words that landed on a shuttle's next pc
 CYCLES = int(os.environ.get("LOCKSTEP_CYCLES", "600"))
 SEED = int(os.environ.get("LOCKSTEP_SEED", "1"))
 HOST_TRAFFIC = os.environ.get("LOCKSTEP_HOST_TRAFFIC", "1") == "1"
@@ -206,7 +207,9 @@ async def one_trial(dut, rng, trial):
     # the pins the host does not use. Every host push or pop that the RTL's
     # host port makes is copied into the model at the same clock edge, after
     # the shuttles' own step, judged against the FIFO as it was at the start
-    # of the cycle (the rule in docs/spec.md).
+    # of the cycle (the rule in docs/spec.md). The host also rewrites random
+    # instruction words, and each byte goes into the model at the edge where
+    # the RTL writes it.
     traffic = None
     popped_rtl, popped_model = [], []
 
@@ -215,7 +218,15 @@ async def one_trial(dut, rng, trial):
         await RisingEdge(dut.clk)
         while True:
             e = rng.randrange(NS)
-            if rng.random() < 0.5:
+            if rng.random() < 0.3:
+                # Rewrite one instruction while the shuttles run, often the one a
+                # shuttle is sitting on, so that some writes land on the very
+                # next fetch.
+                i = int(top.sh[e].u.pc.value) if rng.random() < 0.5 else rng.randrange(64)
+                w = random_instruction(rng)
+                await host.write(0x400 + 4 * i, [w & 0xFF, (w >> 8) & 0xFF, w >> 16])
+                words[i] = w
+            elif rng.random() < 0.5:
                 await host.write(0x008 + e, [rng.randrange(256) for _ in range(rng.randrange(1, 4))])
             else:
                 popped_rtl.extend((e, b) for b in await host.read(0x008 + e, rng.randrange(1, 3)))
@@ -246,8 +257,16 @@ async def one_trial(dut, rng, trial):
         if rd:
             re = int(top.h_rd_addr.value) - 8
             rx_empty_before = len(chip.shuttles[re].rx_fifo) == 0
+        iw = int(top.h_wr.value) and 0x400 <= int(top.h_waddr.value) < 0x500
+        if iw:
+            iaddr, ibyte = int(top.h_waddr.value), int(top.h_wdata.value)
         before = [model_state(sh) for sh in chip.shuttles]
         want = chip.step(ui, uio)
+        if iw:
+            REWRITES[0] += 1
+            chip.write(iaddr, ibyte)
+            if iaddr & 3 == 2 and any(sh.pc == (iaddr >> 2) & 63 for sh in chip.shuttles):
+                REWRITES[1] += 1      # lands at this edge, after the step, as in the RTL
         if wr and not tx_full_before:
             chip.shuttles[we].tx_fifo.append(wbyte)
         if rd:
@@ -285,6 +304,10 @@ async def test_lockstep_random(dut):
     for trial in range(TRIALS):
         await one_trial(dut, rng, trial)
     dut._log.info("coverage over %d trials of %d cycles\n%s", TRIALS, CYCLES, COVERAGE.report())
+    dut._log.info("instruction bytes rewritten while the shuttles ran: %d, words that landed on a next pc: %d",
+                  REWRITES[0], REWRITES[1])
+    if HOST_TRAFFIC:
+        assert REWRITES[0] > 0
     holes = COVERAGE.holes()
     if holes:
         dut._log.warning("coverage holes: %s", "; ".join(holes))
