@@ -388,3 +388,28 @@ def dali_decode(samples, half):
         assert syms[34:] == [1, 1, 1, 1], f"bad stop bits {syms[34:]}"
         frames.append(value)
         i = start + 38 * half
+
+
+def dshot_decode(samples, bit_cycles):
+    """Decode DShot frames from per-cycle samples of the line.
+
+    Every bit starts with a rising edge exactly `bit_cycles` after the previous one within a frame. A 1 is high for 3/4 of the bit and a 0 for 3/8, as in the DShot specification. Frames are 16 bits: 11 throttle bits, the telemetry bit and a checksum that must equal the XOR of the three nibbles of the first 12 bits. Returns (throttle, telemetry) pairs.
+    """
+    rises = [i for i in range(1, len(samples)) if samples[i] and not samples[i - 1]]
+    frames, k = [], 0
+    while k + 16 <= len(rises):
+        value = 0
+        for j in range(16):
+            r = rises[k + j]
+            if j:
+                assert r - rises[k + j - 1] == bit_cycles, f"bit period {r - rises[k + j - 1]}"
+            high = 0
+            while samples[r + high]:
+                high += 1
+            assert high in (bit_cycles * 3 // 4, bit_cycles * 3 // 8), f"high time {high}"
+            value = (value << 1) | (high == bit_cycles * 3 // 4)
+        data, check = value >> 4, value & 0xF
+        assert check == (data ^ (data >> 4) ^ (data >> 8)) & 0xF, f"checksum {check} for {data:#05x}"
+        frames.append((data >> 1, data & 1))
+        k += 16
+    return frames

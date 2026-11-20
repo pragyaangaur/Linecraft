@@ -130,6 +130,14 @@ def dali_tx(shuttle, tx_pin, clk_hz, origin=0):
     return _done(shuttle, cfg, program("dali_tx", origin))
 
 
+def dshot(shuttle, data_pin, clk_hz, rate=600e3, origin=0):
+    """DShot frames: push (value >> 4, (value & 15) << 4) per frame, where value = throttle << 1 | telemetry."""
+    cfg = ShuttleConfig(side_base=data_pin, set_base=data_pin, set_count=1, autopull=True, pull_thresh=8,
+                        crc_src=CRC_TX, crc_width=4, crc_poly=0x1)
+    cfg.set_rate(clk_hz, 16 * rate)
+    return _done(shuttle, cfg, program("dshot", origin))
+
+
 def ws2812(shuttle, data_pin, clk_hz, origin=0):
     cfg = ShuttleConfig(side_base=data_pin, set_base=data_pin, set_count=1, autopull=True, pull_thresh=8)
     cfg.set_rate(clk_hz, 8e6)
@@ -137,4 +145,4 @@ def ws2812(shuttle, data_pin, clk_hz, origin=0):
 
 
 PRESETS = {f.__name__: f for f in (uart_tx, uart_tx_parity, uart_rx, spi_master, spi_target, i2c, i2c_target,
-                                    usb_ls_tx, usb_ls_rx, can_tx, dali_tx, ws2812)}
+                                    usb_ls_tx, usb_ls_rx, can_tx, dali_tx, dshot, ws2812)}

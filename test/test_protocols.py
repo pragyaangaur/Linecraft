@@ -378,6 +378,34 @@ async def test_dali_manchester(dut):
 
 
 @cocotb.test()
+async def test_dshot_checksum_by_crc(dut):
+    """DShot frames whose checksum, the XOR of three nibbles, comes from a CRC with polynomial x^4 + 1."""
+    from peers import dshot_decode
+    host = await start(dut)
+    cfg = ShuttleConfig(side_base=1, set_base=1, set_count=1, autopull=True, pull_thresh=8,
+                        crc_src=CRC_TX, crc_width=4, crc_poly=0x1)
+    cfg.set_ratio(4)                                    # 16 ticks per bit, so 64 cycles
+    await load(host, 0, cfg, program("dshot"))
+    await host.write(0x001, 0x1)
+
+    async def sample(n):
+        out = []
+        for _ in range(n):
+            await RisingEdge(dut.clk)
+            out.append((int(dut.uo_out.value) >> 1) & 1)
+        return out
+
+    frames = [(1046, 0), (48, 1), (2047, 0), (0, 0)]
+    cap = cocotb.start_soon(sample(7000))
+    for throttle, telemetry in frames:
+        v = throttle << 1 | telemetry
+        await host.write(0x008, [v >> 4, (v & 0xF) << 4])
+        await ClockCycles(dut.clk, 1300)
+    got = dshot_decode(await cap, 64)
+    assert got == frames, got
+
+
+@cocotb.test()
 async def test_spi_target(dut):
     """The chip as an SPI peripheral, clocked by a controller model on its input pins."""
     host = await start(dut)
