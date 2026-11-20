@@ -154,6 +154,17 @@ Two separate implementations were written from [docs/spec.md](docs/spec.md): the
   - A whole shuttle keeps its invariants for every program, configuration and input: the FIFOs never overflow or underflow and their pointers match their counts, the shift counters stay within 32, at most 8 CRC bits wait, an instruction only runs on a tick with no delay left, and a disabled shuttle that is not restarted keeps its program state. These are proved by temporal induction with Yosys.
   - A planted false assertion (a TX FIFO can never be full) must be found by the same setup, and it is found at depth 5. This shows the proofs are not vacuous.
 
+## Hardening
+
+The design targets an 8x4 tile slot on the IHP CMOS5L shuttle through the Tiny Tapeout flow (`.github/workflows/gds.yaml`, run by hand). Two settings in `src/config.json` matter.
+
+- `SYNTH_STRATEGY` is `AREA 0`. The default `DELAY 4` strategy inserted so many buffers that the cells needed 103 percent of the core.
+- `SYNTH_HIERARCHY_MODE` is `deferred_flatten`. Flattened `AREA 0` synthesis ran for hours in CI, but with the hierarchy kept ABC optimises one shuttle instead of four copies, and synthesis takes about 30 seconds. The four shuttle design then floorplans at 55 percent utilization.
+
+The clock target is 40 MHz (25 ns). At 50 MHz the hardened design had 705 setup violations with a worst slack of -4.6 ns, and at 25 ns it has none before routing. The longest paths run from the program counter through the instruction memory mux, decode and the IN or OUT data path in one cycle, so a registered instruction fetch is the natural next step toward 50 MHz.
+
+A clean GDS run through routing and precheck is not confirmed yet. The latest run gets through synthesis, floorplan, placement and clock tree synthesis, and its timing repair at 25 ns ends with positive setup slack.
+
 ## Building and testing
 
 ```bash
