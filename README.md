@@ -6,7 +6,7 @@ An entry for the Jane Street protocol emulator ASIC competition, on the Tiny Tap
 </p>
 
 <p align="center">
-<img alt="17 protocol programs" src="https://img.shields.io/badge/protocols-17%20programs-2f6db5">
+<img alt="19 protocol programs" src="https://img.shields.io/badge/protocols-19%20programs-2f6db5">
 <img alt="Tiny Tapeout IHP 130 nm" src="https://img.shields.io/badge/Tiny%20Tapeout-IHP%20130%20nm%2C%208x4%20tiles-555">
 <img alt="Verilog and Python" src="https://img.shields.io/badge/built%20with-Verilog%20%2B%20Python-c2571a">
 <img alt="Apache 2.0 licence" src="https://img.shields.io/badge/licence-Apache%202.0-lightgrey">
@@ -31,7 +31,7 @@ Programmable protocol engines already exist. The RP2040's PIO is the best known 
 - [Line codes as tables](#line-codes-as-tables)
 - [How much clock error can a receiver survive?](#how-much-clock-error-can-a-receiver-survive)
 - [Receivers from transmitters](#receivers-from-transmitters)
-- [Two small tricks with the CRC unit](#two-small-tricks-with-the-crc-unit)
+- [Checksums that are secretly CRCs](#checksums-that-are-secretly-crcs)
 - [The protocols](#the-protocols)
 - [How it is verified](#how-it-is-verified)
 - [Fitting it on the chip](#fitting-it-on-the-chip)
@@ -123,10 +123,13 @@ Writing a decoder table by hand is where line code bugs live, so the toolchain d
 
 The best test of flexibility is a protocol the chip was not designed for. Biphase mark code, the line code of S/PDIF digital audio, appears nowhere in the design. I wrote its transmit rule in six lines of Python inside a test. The toolchain derived a 4 state receiver, proved the pair, found R = 2, and the chip sent and received four bytes through a loopback with two generic programs. [docs/new_protocol.md](docs/new_protocol.md) walks through the same steps for any new code.
 
-## Two small tricks with the CRC unit
+## Checksums that are secretly CRCs
 
-- **Parity for free.** A 1 bit CRC with polynomial 1 is the parity of the bits fed into it. The UART 8O1 and 8E1 transmitters and the PS/2 receiver use the CRC unit this way, so the chip has no parity hardware.
-- **Address matching for free.** A CRC of width W is a one to one map on W bit messages, so two different 8 bit addresses can never give the same CRC-8. The I2C target loads the CRC of its own address as the check value, and one `JMP CRCOK` after the address byte tells it whether the controller is talking to it.
+Many protocols use a simple checksum that XORs fixed size pieces of a message together. Each such checksum is a CRC in disguise. A CRC of width W divides the message by its polynomial g(x), and when g(x) = x^W + 1 we have x^W = 1, so every block of W bits folds onto the next one and the remainder is the XOR of all the blocks. Linecraft therefore needs no checksum hardware beyond its CRC unit.
+
+- **Parity.** With W = 1 the polynomial is x + 1, and the CRC is the parity of the message. The UART 8O1 and 8E1 transmitters and the PS/2 receiver use it this way.
+- **DShot.** The motor command protocol of drone speed controllers ends each frame with the XOR of its three 4 bit nibbles. That is the CRC with polynomial x^4 + 1, so the chip appends it with `MOV OSR, CRC` like any other CRC.
+- **Address matching.** A CRC of width W is a one to one map on W bit messages, so two different 8 bit addresses can never give the same CRC-8. The I2C target loads the CRC of its own address as the check value, and one `JMP CRCOK` after the address byte tells it whether the controller is talking to it.
 
 ## The protocols
 
@@ -148,6 +151,8 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | CAN 2.0A transmit | `can_tx` | A decoder from ISO 11898 that checks stuff bits, CRC-15 and the frame end |
 | Biphase mark (S/PDIF) | `bmc_tx`, `bmc_rx` | A derived receiver and a loopback, described above |
 | WS2812 LEDs | `ws2812` | A pulse width decoder that checks every high time |
+| DALI lighting control | `dali_tx` | A decoder from IEC 62386 that checks the start bit, the Manchester edge in every bit and the stop bits, with every edge on the half bit grid |
+| DShot600 drone motor commands | `dshot` | A decoder that checks every bit period and high time and the 4 bit checksum, which the chip makes with its CRC unit |
 | Four at once | four of the above | UART, SPI, I2C and WS2812 run together on the four shuttles from one memory |
 
 ![One USB low speed packet from the cycle accurate model, with the stuffed bits marked](docs/img/usb_waveform.svg)
@@ -213,7 +218,7 @@ python -m linecraft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=40e6 > 
 | [`docs/spec.md`](docs/spec.md) | The architecture, instruction set and register map |
 | [`docs/theory.md`](docs/theory.md) | The arguments behind the clock bound, receiver synthesis and the divider proof |
 | [`docs/new_protocol.md`](docs/new_protocol.md) | How to add a protocol the chip was not designed for |
-| [`programs/`](programs) | 17 protocol programs in Linecraft assembly |
+| [`programs/`](programs) | 19 protocol programs in Linecraft assembly |
 | [`linecraft/`](linecraft) | Assembler, cycle accurate model, configuration, line codes, CRC catalogue, analysis and receiver synthesis |
 | [`test/`](test) | cocotb tests, the SPI host driver and the peer models |
 | [`formal/`](formal) | The formal proof script |
