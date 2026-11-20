@@ -253,7 +253,7 @@ def verification_figure():
     arrow(ax, 0.335, 0.70, 0.52, 0.62)
     arrow(ax, 0.335, 0.30, 0.52, 0.38)
     checks = [("Protocol peers\nseparate code for each protocol", 0.75), ("Formal proofs\ndivider, shuttle invariants", 0.53),
-              ("Gate netlist\n27 pin tests again", 0.31), ("Python tests\n173 for the toolchain", 0.07)]
+              ("Gate netlist\n32 pin tests again", 0.31), ("Python tests\n177 for the toolchain", 0.07)]
     for text, y in checks:
         box(ax, 0.79, y, 0.19, 0.17, text, "#eef0f3", size=8.8)
     ax.plot([0.43, 0.75], [0.84, 0.84], color=MUTED, lw=1.2)
