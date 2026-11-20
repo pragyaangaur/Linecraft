@@ -23,6 +23,7 @@ def test_every_preset_builds():
         "usb_ls_rx": dict(shuttle=1, dminus_pin=8, clk_hz=CLK, origin=32),
         "can_tx": dict(shuttle=3, tx_pin=4, bitrate=500e3, clk_hz=CLK),
         "dali_tx": dict(shuttle=2, tx_pin=1, clk_hz=CLK),
+        "dali_rx": dict(shuttle=3, rx_pin=3, clk_hz=CLK),
         "dshot": dict(shuttle=1, data_pin=2, clk_hz=CLK),
         "ws2812": dict(shuttle=0, data_pin=5, clk_hz=CLK),
     }

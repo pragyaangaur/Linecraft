@@ -378,6 +378,29 @@ async def test_dali_manchester(dut):
 
 
 @cocotb.test()
+async def test_dali_receive_with_clock_error(dut):
+    """DALI backward frames sent 8 percent slow and 8 percent fast, decoded by the Manchester table with edge resync."""
+    host = await start(dut)
+    cfg = ShuttleConfig(in_base=0, in_right=False, autopush=True, push_thresh=9, sync_en=True, sync_pin=0,
+                        sync_phase=7)
+    cfg.use_line_code(linecodes.manchester(), "rx")
+    cfg.set_ratio(16)                                   # 2 ticks per 32 cycle half bit
+    await load(host, 0, cfg, program("dali_rx"))
+    await host.write(0x001, 0x1)
+    for error in (-0.08, 0.08):
+        data = [0xA5, 0x00, 0xFF, 0x3C]
+        symbols = [1] * 10
+        for b in data:
+            symbols += [0, 1] + [s for i in range(8) for s in ((0, 1) if (b >> (7 - i)) & 1 else (1, 0))] + [1] * 10
+        half = 32 * (1 + error)
+        for t in range(int(len(symbols) * half)):
+            host.set_pins(symbols[int(t / half)], 0x01)
+            await RisingEdge(dut.clk)
+        got = await host.read(0x008, 4)
+        assert got == data, (error, [hex(g) for g in got])
+
+
+@cocotb.test()
 async def test_dshot_checksum_by_crc(dut):
     """DShot frames whose checksum, the XOR of three nibbles, comes from a CRC with polynomial x^4 + 1."""
     from peers import dshot_decode

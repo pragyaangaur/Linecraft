@@ -130,6 +130,16 @@ def dali_tx(shuttle, tx_pin, clk_hz, origin=0):
     return _done(shuttle, cfg, program("dali_tx", origin))
 
 
+def dali_rx(shuttle, rx_pin, clk_hz, origin=0):
+    """DALI backward frames at 1200 bit/s. Each received byte is pushed to the RX FIFO."""
+    cycles_per_symbol = clk_hz / 2400
+    cfg = ShuttleConfig(in_base=rx_pin, in_right=False, autopush=True, push_thresh=9, sync_en=True,
+                        sync_pin=rx_pin, sync_phase=max(round(cycles_per_symbol / 4) - 1, 0))
+    cfg.set_rate(clk_hz, 2 * 2400)
+    cfg.use_line_code(linecodes.manchester(), "rx")
+    return _done(shuttle, cfg, program("dali_rx", origin))
+
+
 def dshot(shuttle, data_pin, clk_hz, rate=600e3, origin=0):
     """DShot frames: push (value >> 4, (value & 15) << 4) per frame, where value = throttle << 1 | telemetry."""
     cfg = ShuttleConfig(side_base=data_pin, set_base=data_pin, set_count=1, autopull=True, pull_thresh=8,
@@ -145,4 +155,4 @@ def ws2812(shuttle, data_pin, clk_hz, origin=0):
 
 
 PRESETS = {f.__name__: f for f in (uart_tx, uart_tx_parity, uart_rx, spi_master, spi_target, i2c, i2c_target,
-                                    usb_ls_tx, usb_ls_rx, can_tx, dali_tx, dshot, ws2812)}
+                                    usb_ls_tx, usb_ls_rx, can_tx, dali_tx, dali_rx, dshot, ws2812)}

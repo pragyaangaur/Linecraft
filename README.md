@@ -6,7 +6,7 @@ An entry for the Jane Street protocol emulator ASIC competition, on the Tiny Tap
 </p>
 
 <p align="center">
-<img alt="19 protocol programs" src="https://img.shields.io/badge/protocols-19%20programs-2f6db5">
+<img alt="20 protocol programs" src="https://img.shields.io/badge/protocols-20%20programs-2f6db5">
 <img alt="Tiny Tapeout IHP 130 nm" src="https://img.shields.io/badge/Tiny%20Tapeout-IHP%20130%20nm%2C%208x4%20tiles-555">
 <img alt="Verilog and Python" src="https://img.shields.io/badge/built%20with-Verilog%20%2B%20Python-c2571a">
 <img alt="Apache 2.0 licence" src="https://img.shields.io/badge/licence-Apache%202.0-lightgrey">
@@ -151,7 +151,7 @@ Every program is in [programs/](programs), and every test drives the chip only t
 | CAN 2.0A transmit | `can_tx` | A decoder from ISO 11898 that checks stuff bits, CRC-15 and the frame end |
 | Biphase mark (S/PDIF) | `bmc_tx`, `bmc_rx` | A derived receiver and a loopback, described above |
 | WS2812 LEDs | `ws2812` | A pulse width decoder that checks every high time |
-| DALI lighting control | `dali_tx` | A decoder from IEC 62386 that checks the start bit, the Manchester edge in every bit and the stop bits, with every edge on the half bit grid |
+| DALI lighting control, transmit and receive | `dali_tx`, `dali_rx` | A decoder from IEC 62386 that checks the start bit, the Manchester edge in every bit and the stop bits, with every edge on the half bit grid. The receiver decodes frames sent 8 percent slow and 8 percent fast, using the built-in Manchester table and edge resync |
 | DShot600 drone motor commands | `dshot` | A decoder that checks every bit period and high time and the 4 bit checksum, which the chip makes with its CRC unit |
 | Four at once | four of the above | UART, SPI, I2C and WS2812 run together on the four shuttles from one memory |
 
@@ -218,7 +218,7 @@ python -m linecraft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=40e6 > 
 | [`docs/spec.md`](docs/spec.md) | The architecture, instruction set and register map |
 | [`docs/theory.md`](docs/theory.md) | The arguments behind the clock bound, receiver synthesis and the divider proof |
 | [`docs/new_protocol.md`](docs/new_protocol.md) | How to add a protocol the chip was not designed for |
-| [`programs/`](programs) | 19 protocol programs in Linecraft assembly |
+| [`programs/`](programs) | 20 protocol programs in Linecraft assembly |
 | [`linecraft/`](linecraft) | Assembler, cycle accurate model, configuration, line codes, CRC catalogue, analysis and receiver synthesis |
 | [`test/`](test) | cocotb tests, the SPI host driver and the peer models |
 | [`formal/`](formal) | The formal proof script |
