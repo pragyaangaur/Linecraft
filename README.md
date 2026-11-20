@@ -167,7 +167,7 @@ I wrote the Verilog in [src/](src) from [docs/spec.md](docs/spec.md). A cycle ac
 
 - **Lockstep random testing** ([test/test_lockstep.py](test/test_lockstep.py)). Each trial loads a random 64 instruction program and random settings for all four shuttles into both the RTL and the model, then drives random pin inputs while a host pushes and pops FIFO bytes over SPI. On every clock cycle it compares every output pin, the interrupt flags and fifteen registers of every shuttle. Two campaigns of 200 trials of 1000 cycles each found no differences. Functional coverage shows that every opcode runs, every opcode that can stall does stall, and every jump condition is seen both taken and not taken ([docs/lockstep_coverage.txt](docs/lockstep_coverage.txt)).
 - **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against the peer models in [test/peers.py](test/peers.py), which share no code with the toolchain.
-- **Toolchain tests** in [linecraft/tests](linecraft/tests), 177 of them. They cover the assembler, every CRC in the catalogue sent bit for bit on the wire (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8 and others), the line code analyses and receiver synthesis.
+- **Toolchain tests** in [linecraft/tests](linecraft/tests), 178 of them. They cover the assembler, every CRC in the catalogue sent bit for bit on the wire (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8 and others), the line code analyses and receiver synthesis.
 - **Gate level simulation** ([scripts/postsynth_sim.sh](scripts/postsynth_sim.sh)). The RTL is synthesised to gates and all 32 pin level tests run again on the netlist, and all of them pass.
 - **Formal proofs** ([formal/run.sh](formal/run.sh)), which hold on every cycle of every run.
   - The fractional divider has zero long term drift. Tick k always falls at exactly floor(k(N + F/256)) cycles, proved by k-induction for every divider setting.
@@ -202,6 +202,12 @@ python -m linecraft.analysis
 python experiments/cdr_sweep.py --plot sweep.svg
 python docs/make_figures.py
 cd test && make
+```
+
+To see a protocol without any Verilog tools, run it in the model and open the waveform in [GTKWave](https://gtkwave.sourceforge.net) or [Surfer](https://surfer-project.org).
+
+```bash
+python -m linecraft.sim dshot shuttle=0 data_pin=1 clk_hz=40e6 --send 0x41,0x60 --cycles 3000 --vcd dshot.vcd
 ```
 
 `scripts/check_all.sh` runs everything, including the proofs. Make cannot handle a project path that contains spaces, so run the cocotb tests from a path without them.
