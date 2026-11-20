@@ -1,11 +1,11 @@
-// One Weft shuttle: a small cycle-exact processor with its own divider,
+// One Linecraft shuttle: a small cycle-exact processor with its own divider,
 // FIFOs, line coder (finite state transducer) and CRC unit.
 // The behaviour follows docs/spec.md. Comments point at the spec where a
 // choice is not obvious from the code.
 
 `default_nettype none
 
-module weft_shuttle (
+module linecraft_shuttle (
     input  wire        clk,
     input  wire        rst_n,
     input  wire        en,          // shuttle enable from the host
@@ -224,7 +224,7 @@ module weft_shuttle (
     wire        sync_edge = sync_en & (pins[sync_pin] ^ pins_prev[sync_pin]);
     wire        tick;
 
-    weft_divider divider (
+    linecraft_divider divider (
         .clk(clk), .rst_n(rst_n), .en(en), .restart(restart), .sync_edge(sync_edge),
         .div_int(div_int), .div_frac(div_frac), .sync_phase(sync_phase), .tick(tick)
     );

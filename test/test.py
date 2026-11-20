@@ -1,10 +1,10 @@
-"""Smoke tests for the Weft chip, driven only through its pins."""
+"""Smoke tests for the Linecraft chip, driven only through its pins."""
 
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, RisingEdge
 
-from weft_host import Host, reset
+from linecraft_host import Host, reset
 
 
 def ins(op, args=0, delay=0, side=0):

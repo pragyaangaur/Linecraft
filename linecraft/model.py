@@ -1,4 +1,4 @@
-"""Cycle-accurate model of the Weft core (everything except the SPI port).
+"""Cycle-accurate model of the Linecraft core (everything except the SPI port).
 
 The model follows docs/spec.md literally so that it can run in lockstep with
 the RTL. Host register accesses (`Chip.write`, `Chip.read`) take effect at
@@ -644,7 +644,7 @@ class Shuttle:
 
 
 class Chip:
-    """The whole Weft core: the shuttles, shared memory, IRQs and pins.
+    """The whole Linecraft core: the shuttles, shared memory, IRQs and pins.
 
     `crc_forwarding` picks how the late CRC update is read (see Shuttle.crc).
     `num_shuttles` matches NS in src/project.v. Host accesses to a shuttle

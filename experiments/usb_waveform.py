@@ -1,6 +1,6 @@
-"""Draw one USB low speed packet as Weft sends it, from the cycle accurate model.
+"""Draw one USB low speed packet as Linecraft sends it, from the cycle accurate model.
 
-Shuttle 0 runs programs/usb_ls_tx.weft with the usb line code and the CRC16 unit. The script records D- and D+ on every clock, marks the stuffed bits that the line coder inserted, and writes an SVG.
+Shuttle 0 runs programs/usb_ls_tx.linecraft with the usb line code and the CRC16 unit. The script records D- and D+ on every clock, marks the stuffed bits that the line coder inserted, and writes an SVG.
 
 Run: python3 experiments/usb_waveform.py docs/img/usb_waveform.svg
 """
@@ -11,8 +11,8 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from weft import protocols                     # noqa: E402
-from weft.model import Chip                    # noqa: E402
+from linecraft import protocols                     # noqa: E402
+from linecraft.model import Chip                    # noqa: E402
 
 CLK = 50e6
 CPB = CLK / 1.5e6
@@ -84,7 +84,7 @@ def svg(path, bits, names):
     x0 = 70
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" font-family="sans-serif" font-size="11">',
            '<rect width="100%" height="100%" fill="white"/>',
-           f'<text x="{x0}" y="16" font-size="13">One USB low speed DATA0 packet from usb_ls_tx.weft, with the stuffed bits the line coder inserted</text>']
+           f'<text x="{x0}" y="16" font-size="13">One USB low speed DATA0 packet from usb_ls_tx.linecraft, with the stuffed bits the line coder inserted</text>']
     for i, name in enumerate(names):
         x = x0 + 18 * i
         out.append(f'<rect x="{x}" y="26" width="18" height="120" fill="{colours[name]}"/>')

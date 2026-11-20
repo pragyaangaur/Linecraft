@@ -15,13 +15,13 @@ OUT=${OUT:-formal/build}
 mkdir -p "$OUT"
 
 echo "== divider: k-induction with z3"
-yosys -q -p "read_verilog -formal -DFORMAL_DIVIDER src/weft_divider.v; prep -top weft_divider; async2sync; dffunmap; write_smt2 -wires $OUT/divider.smt2"
+yosys -q -p "read_verilog -formal -DFORMAL_DIVIDER src/linecraft_divider.v; prep -top linecraft_divider; async2sync; dffunmap; write_smt2 -wires $OUT/divider.smt2"
 yosys-smtbmc -s z3 --presat -t 4 "$OUT/divider.smt2" > "$OUT/divider.bmc.log" || { tail -20 "$OUT/divider.bmc.log"; exit 1; }
 yosys-smtbmc -s z3 -i -t 4 "$OUT/divider.smt2" > "$OUT/divider.ind.log" || { tail -20 "$OUT/divider.ind.log"; exit 1; }
 echo "   base case and induction: PASS"
 
 shuttle() {
-    yosys -p "read_verilog -formal -DFORMAL_SHUTTLE $1 src/weft_shuttle.v src/weft_divider.v; prep -top weft_shuttle; flatten; memory_map; opt -fast; async2sync; dffunmap; opt_clean; sat -tempinduct -prove-asserts -set-assumes -set-init-zero -seq 1 -maxsteps 12" > "$2" 2>&1
+    yosys -p "read_verilog -formal -DFORMAL_SHUTTLE $1 src/linecraft_shuttle.v src/linecraft_divider.v; prep -top linecraft_shuttle; flatten; memory_map; opt -fast; async2sync; dffunmap; opt_clean; sat -tempinduct -prove-asserts -set-assumes -set-init-zero -seq 1 -maxsteps 12" > "$2" 2>&1
     grep -q "Induction step proven: SUCCESS" "$2"
 }
 

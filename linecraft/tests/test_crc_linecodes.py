@@ -2,11 +2,11 @@ import random
 
 import pytest
 
-from weft.config import ShuttleConfig, config_registers, div_for, setup_writes
-from weft.crc import (CATALOGUE, CrcSpec, crc_reference, crc_wire_bits, weft_register,
-                      weft_sent_bits, weft_settings, wire_bits)
-from weft.linecodes import CODES, run_rx, run_tx, unpack_entry
-from weft.model import reverse_bits
+from linecraft.config import ShuttleConfig, config_registers, div_for, setup_writes
+from linecraft.crc import (CATALOGUE, CrcSpec, crc_reference, crc_wire_bits, linecraft_register,
+                      linecraft_sent_bits, linecraft_settings, wire_bits)
+from linecraft.linecodes import CODES, run_rx, run_tx, unpack_entry
+from linecraft.model import reverse_bits
 
 NAMES = ["CRC-5/USB", "CRC-16/USB", "CRC-32/ISO-HDLC", "CRC-15/CAN", "CRC-8/SMBUS",
          "CRC-7/MMC", "CRC-16/IBM-3740"]
@@ -19,31 +19,31 @@ def test_reference_check_values(name):
 
 
 @pytest.mark.parametrize("name", NAMES)
-def test_weft_sends_the_catalogue_crc(name):
+def test_linecraft_sends_the_catalogue_crc(name):
     spec = CATALOGUE[name]
-    settings = weft_settings(spec)
+    settings = linecraft_settings(spec)
     rng = random.Random(name)
     for length in (0, 1, 9, 30):
         data = bytes(rng.randrange(256) for _ in range(length))
         bits = wire_bits(data, settings.lsb_first)
-        sent = weft_sent_bits(settings, bits)
+        sent = linecraft_sent_bits(settings, bits)
         assert sent == crc_wire_bits(spec, crc_reference(spec, data))
         # The receiver's register after message plus CRC is the constant CRC_CHECK.
-        assert weft_register(settings, bits + sent) == settings.check
+        assert linecraft_register(settings, bits + sent) == settings.check
 
 
 @pytest.mark.parametrize("name", NAMES)
 def test_check_residue_matches_catalogue(name):
     spec = CATALOGUE[name]
     expected = reverse_bits(spec.residue, spec.width) if spec.refin else spec.residue
-    assert weft_settings(spec).check == expected
+    assert linecraft_settings(spec).check == expected
 
 
 def test_aliases_and_unsupported():
     assert CATALOGUE["CRC-32"] is CATALOGUE["CRC-32/ISO-HDLC"]
     assert CATALOGUE["CRC-16/CCITT-FALSE"].check == 0x29B1
     with pytest.raises(ValueError):
-        weft_settings(CrcSpec("odd init", 8, 0x07, 0x55, False, False, 0, 0, 0))
+        linecraft_settings(CrcSpec("odd init", 8, 0x07, 0x55, False, False, 0, 0, 0))
 
 
 # ----- config -----

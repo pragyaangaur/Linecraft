@@ -1,8 +1,8 @@
 """Derive a receive table from a transmit table.
 
-A user who adds a new line code only has to write the transmitter. This module builds the matching receiver automatically, minimises it, and checks that it fits in the 16 state line coder. weft.analysis.check_round_trip then proves the pair correct.
+A user who adds a new line code only has to write the transmitter. This module builds the matching receiver automatically, minimises it, and checks that it fits in the 16 state line coder. linecraft.analysis.check_round_trip then proves the pair correct.
 
-Method. The receiver does not know which configuration the transmitter is in, so its state is the set of transmitter configurations that agree with every symbol seen so far (the subset construction for automata). A configuration is (state, held), where held is a data bit the transmitter has looked at but not yet used, as in weft.analysis.tx_graph. When a symbol s arrives, every configuration in the set moves along each of its steps that would have sent s. The receiver can act on the symbol if all those steps agree:
+Method. The receiver does not know which configuration the transmitter is in, so its state is the set of transmitter configurations that agree with every symbol seen so far (the subset construction for automata). A configuration is (state, held), where held is a data bit the transmitter has looked at but not yet used, as in linecraft.analysis.tx_graph. When a symbol s arrives, every configuration in the set moves along each of its steps that would have sent s. The receiver can act on the symbol if all those steps agree:
 
 - if none of them used a data bit, it emits nothing;
 - if all of them used the same data bit b, it emits b;
@@ -10,7 +10,7 @@ Method. The receiver does not know which configuration the transmitter is in, so
 
 A symbol that no configuration could have sent is a line error. The receiver raises its flag and goes back to the start set. After the subset construction, states that behave the same on every symbol sequence are merged by partition refinement (Moore's algorithm), and the start state is placed at index 0.
 
-Run `python -m weft.synth` to synthesise a receiver for every built-in code and compare it with the hand-written one.
+Run `python -m linecraft.synth` to synthesise a receiver for every built-in code and compare it with the hand-written one.
 """
 
 import sys

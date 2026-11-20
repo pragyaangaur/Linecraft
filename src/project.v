@@ -1,5 +1,5 @@
 /*
- * Weft: a reprogrammable protocol emulator.
+ * Linecraft: a reprogrammable protocol emulator.
  * Copyright (c) 2026 Pragyaan Gaur
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -10,7 +10,7 @@
 
 `default_nettype none
 
-module tt_um_pragyaangaur_weft (
+module tt_um_pragyaangaur_linecraft (
     input  wire [7:0] ui_in,
     output wire [7:0] uo_out,
     input  wire [7:0] uio_in,
@@ -47,7 +47,7 @@ module tt_um_pragyaangaur_weft (
     wire [7:0]  h_wdata;
     reg  [7:0]  h_rdata;
 
-    weft_host host (
+    linecraft_host host (
         .clk(clk), .rst_n(rst_n),
         .csn(pins[7]), .sck(pins[6]), .sck_prev(pins_prev[6]), .mosi(pins[5]),
         .miso(miso),
@@ -135,7 +135,7 @@ module tt_um_pragyaangaur_weft (
             wire fifo_wr = h_wr && (h_waddr == 15'h008 + g);
             wire fifo_rd = h_rd_commit && (h_rd_addr == 15'h008 + g);
 
-            weft_shuttle u (
+            linecraft_shuttle u (
                 .clk(clk), .rst_n(rst_n),
                 .en(enable[g]), .restart(restart[g]),
                 .pins(pins), .pins_prev(pins_prev),

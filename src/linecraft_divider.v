@@ -6,7 +6,7 @@
 
 `default_nettype none
 
-module weft_divider (
+module linecraft_divider (
     input  wire        clk,
     input  wire        rst_n,
     input  wire        en,

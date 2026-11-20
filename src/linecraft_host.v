@@ -5,7 +5,7 @@
 
 `default_nettype none
 
-module weft_host (
+module linecraft_host (
     input  wire        clk,
     input  wire        rst_n,
     input  wire        csn,         // synchronized CSn

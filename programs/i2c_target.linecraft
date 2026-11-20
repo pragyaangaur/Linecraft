@@ -12,7 +12,7 @@
 ; SCL is the define and also JMP_PIN. MATCH must test SDA and SCL both
 ; high: MATCH_MASK = MATCH_VAL = (1 << SDA) | (1 << SCL).
 ; Config: SET_COUNT = 1, IN_RIGHT = 0, CRC_SRC = receive, CRC_WIDTH = 8,
-; CRC_POLY = 0x07, CRC_CHECK from weft.protocols.i2c_target.
+; CRC_POLY = 0x07, CRC_CHECK from linecraft.protocols.i2c_target.
 .program i2c_target
 .define SCL 9
     set pins, 0

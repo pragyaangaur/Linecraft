@@ -8,7 +8,7 @@ at but not consumed, or None. All graph analyses below run on the graph of
 configurations reachable from the initial state, where an edge is one step
 (one line symbol) and the adversary picks b whenever held is None.
 
-Run `python -m weft.analysis` for a table of every code in weft.linecodes.
+Run `python -m linecraft.analysis` for a table of every code in linecraft.linecodes.
 """
 
 import math

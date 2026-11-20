@@ -4,7 +4,7 @@ This file is used to generate the project datasheet.
 
 ## How it works
 
-Weft is a reprogrammable protocol emulator. It has four identical engines called shuttles. Each shuttle runs a program from a shared 64 word instruction memory, ticks at a rate set by its own fractional clock divider, and moves bits between the pins and a pair of 4 byte FIFOs with exact cycle timing.
+Linecraft is a reprogrammable protocol emulator. It has four identical engines called shuttles. Each shuttle runs a program from a shared 64 word instruction memory, ticks at a rate set by its own fractional clock divider, and moves bits between the pins and a pair of 4 byte FIFOs with exact cycle timing.
 
 Each shuttle also has two programmable blocks in its data path. The line coder is a finite state transducer with 16 states stored in a 32 entry table, so NRZI, Manchester, bit stuffing and their combinations are data that the host loads. The CRC unit is a Galois LFSR with programmable width, polynomial, initial value and final XOR. A divider option resynchronises a shuttle on every edge of a chosen input pin, which works as a simple clock recovery loop for receivers.
 

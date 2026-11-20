@@ -2,12 +2,12 @@
 
 import pytest
 
-from weft.asm import assemble
-from weft.config import CRC_TX, ShuttleConfig, setup_writes
-from weft.crc import CATALOGUE, crc_reference, crc_wire_bits, weft_settings
-from weft.linecodes import CODES, run_tx
-from weft.model import Chip, run_lockstep
-from weft.tests.helpers import enable, load, run
+from linecraft.asm import assemble
+from linecraft.config import CRC_TX, ShuttleConfig, setup_writes
+from linecraft.crc import CATALOGUE, crc_reference, crc_wire_bits, linecraft_settings
+from linecraft.linecodes import CODES, run_tx
+from linecraft.model import Chip, run_lockstep
+from linecraft.tests.helpers import enable, load, run
 
 
 # ----- host register map -----
@@ -491,7 +491,7 @@ CRC_PROGRAM = """
                                   "CRC-8/SMBUS", "CRC-7/MMC", "CRC-16/IBM-3740"])
 def test_crc_check_values_in_the_model(name):
     spec = CATALOGUE[name]
-    settings = weft_settings(spec)
+    settings = linecraft_settings(spec)
     program = assemble(CRC_PROGRAM.format(top=spec.width - 1))
     cfg = ShuttleConfig(set_count=1, out_right=settings.lsb_first)
     cfg.use_crc(settings, CRC_TX)
@@ -521,7 +521,7 @@ def test_crc_update_is_visible_to_the_next_instruction():
     """
     spec = CATALOGUE["CRC-8/SMBUS"]
     cfg = ShuttleConfig()
-    cfg.use_crc(weft_settings(spec), CRC_TX)
+    cfg.use_crc(linecraft_settings(spec), CRC_TX)
     program = assemble("pull\nout null, 8\nmov x, crc\nh: jmp h")
     for forwarding, want in ((True, crc_reference(spec, b"1")), (False, 0)):
         chip = Chip(crc_forwarding=forwarding)
@@ -535,7 +535,7 @@ def test_crc_update_is_visible_to_the_next_instruction():
 def test_crc_reset_wins_over_pending_update_and_min8_rule():
     spec = CATALOGUE["CRC-8/SMBUS"]
     cfg = ShuttleConfig()
-    cfg.use_crc(weft_settings(spec), CRC_TX)
+    cfg.use_crc(linecraft_settings(spec), CRC_TX)
     chip = Chip()
     chip.write_all(setup_writes(0, cfg, assemble(
         "pull\nout null, 8\nctl crc\nmov x, crc\nmov osr, ::null\nout null, 16\nmov y, crc\nh: jmp h")))

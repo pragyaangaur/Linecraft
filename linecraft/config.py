@@ -79,7 +79,7 @@ class ShuttleConfig:
         self.div_int, self.div_frac, _ = div_for(cycles_per_tick, 1)
 
     def use_crc(self, settings, src):
-        """Copy a weft.crc.WeftCrc into the CRC fields."""
+        """Copy a linecraft.crc.LinecraftCrc into the CRC fields."""
         self.crc_src = src
         self.crc_width = settings.width
         self.crc_poly = settings.poly
@@ -88,7 +88,7 @@ class ShuttleConfig:
         self.crc_check = settings.check
 
     def use_line_code(self, code, direction):
-        """Load a weft.linecodes.LineCode table: direction is 'tx' or 'rx'."""
+        """Load a linecraft.linecodes.LineCode table: direction is 'tx' or 'rx'."""
         self.fst_table = list(getattr(code, direction))
         self.fst_init = getattr(code, direction + "_init")
 

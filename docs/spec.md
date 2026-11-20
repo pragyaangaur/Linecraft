@@ -1,17 +1,17 @@
-# Weft architecture and instruction set
+# Linecraft architecture and instruction set
 
-This file is the reference for the chip. The Verilog in `src/` and the Python model in `weft/model.py` are both written from this file, and the tests check that the two agree cycle by cycle. When the two disagree, this file decides which one is wrong.
+This file is the reference for the chip. The Verilog in `src/` and the Python model in `linecraft/model.py` are both written from this file, and the tests check that the two agree cycle by cycle. When the two disagree, this file decides which one is wrong.
 
 ## Big picture
 
-Weft has four identical engines called shuttles. Each shuttle is a small processor that runs a program from a shared instruction memory and moves bits between pins and FIFOs with exact cycle timing. A host microcontroller loads programs and talks to the shuttles over an SPI port. The number of shuttles is the parameter `NS` in `src/project.v`, 4 by default. A build with fewer keeps the same register map: the host can still address a missing shuttle, its writes do nothing, its TX FIFO reads as full and its RX FIFO as empty.
+Linecraft has four identical engines called shuttles. Each shuttle is a small processor that runs a program from a shared instruction memory and moves bits between pins and FIFOs with exact cycle timing. A host microcontroller loads programs and talks to the shuttles over an SPI port. The number of shuttles is the parameter `NS` in `src/project.v`, 4 by default. A build with fewer keeps the same register map: the host can still address a missing shuttle, its writes do nothing, its TX FIFO reads as full and its RX FIFO as empty.
 
 Every shuttle also has two pieces of programmable hardware that sit between the pins and the shift registers.
 
 - A **line coder**. It is a finite state transducer with 16 states, stored as a 32 entry table. It can do NRZI, Manchester, bit stuffing and bit destuffing, and combinations of them, because each of those codes is a small state machine.
 - A **CRC unit**. It is a Galois LFSR with programmable width (1 to 32), polynomial, initial value and final XOR. It can compute the CRC of a USB packet, an Ethernet frame, a CAN frame or an SMBus transaction while the bits go past.
 
-The idea behind the design is that most serial protocols are built from three layers. The bottom layer is timing, which the shuttle program and its clock divider handle. The middle layer is a line code, which is a finite state machine on bits. The top layer is an error check, which is a linear map over GF(2). Weft gives each layer its own programmable hardware.
+The idea behind the design is that most serial protocols are built from three layers. The bottom layer is timing, which the shuttle program and its clock divider handle. The middle layer is a line code, which is a finite state machine on bits. The top layer is an error check, which is a linear map over GF(2). Linecraft gives each layer its own programmable hardware.
 
 ## Clock, reset and pins
 

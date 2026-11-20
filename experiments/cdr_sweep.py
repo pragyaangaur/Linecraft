@@ -2,7 +2,7 @@
 
 Shuttle 0 runs usb_ls_tx and shuttle 1 runs usb_ls_rx on the same pins, inside the cycle accurate model (which the lockstep tests hold equal to the RTL). The transmitter's divider is scaled by (1 + delta) so its bit rate is off by delta. For each delta the script sends packets that force the longest possible runs and records whether the receiver gets every byte and a good CRC.
 
-The predicted bound is |delta| < (1/(2k) - q/M) / R, with k = 2 ticks per bit, M = cycles per bit, R = the longest run of equal symbols that the usb line code can produce (found from its table by weft.analysis), and q = the synchronizer and divider uncertainty in cycles.
+The predicted bound is |delta| < (1/(2k) - q/M) / R, with k = 2 ticks per bit, M = cycles per bit, R = the longest run of equal symbols that the usb line code can produce (found from its table by linecraft.analysis), and q = the synchronizer and divider uncertainty in cycles.
 
 Run: python3 experiments/cdr_sweep.py [--plot results.svg]
 """
@@ -14,19 +14,19 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from weft.asm import assemble                              # noqa: E402
-from weft.config import ShuttleConfig, setup_writes, CRC_TX, CRC_RX   # noqa: E402
-from weft.crc import CATALOGUE, weft_settings, crc_reference  # noqa: E402
-from weft.model import Chip                                # noqa: E402
-from weft import linecodes, analysis                       # noqa: E402
+from linecraft.asm import assemble                              # noqa: E402
+from linecraft.config import ShuttleConfig, setup_writes, CRC_TX, CRC_RX   # noqa: E402
+from linecraft.crc import CATALOGUE, linecraft_settings, crc_reference  # noqa: E402
+from linecraft.model import Chip                                # noqa: E402
+from linecraft import linecodes, analysis                       # noqa: E402
 
 CLK_HZ = 50e6
 CPB = CLK_HZ / 1.5e6
-USB_CRC = weft_settings(CATALOGUE["CRC-16/USB"])
+USB_CRC = linecraft_settings(CATALOGUE["CRC-16/USB"])
 
 
 def program(name, origin=0):
-    with open(os.path.join(ROOT, "programs", name + ".weft")) as f:
+    with open(os.path.join(ROOT, "programs", name + ".linecraft")) as f:
         return assemble(f".origin {origin}\n" + f.read())
 
 

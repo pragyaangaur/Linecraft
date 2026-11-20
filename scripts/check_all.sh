@@ -4,12 +4,12 @@
 # spaces in paths, so the tests run through a temporary symlink.
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LINK="$(mktemp -d)/weft"
+LINK="$(mktemp -d)/linecraft"
 ln -s "$ROOT" "$LINK"
 cd "$LINK"
 
 echo "== Python tests"
-python3 -m pytest weft -q
+python3 -m pytest linecraft -q
 
 echo "== cocotb tests (RTL)"
 (cd test && make -B > /dev/null 2>&1 || true)
@@ -26,6 +26,6 @@ echo "== formal proofs"
 ./formal/run.sh
 
 echo "== line code analysis"
-python3 -m weft.analysis
-python3 -m weft.synth
+python3 -m linecraft.analysis
+python3 -m linecraft.synth
 rm "$LINK"

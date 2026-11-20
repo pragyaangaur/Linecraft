@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from weft.analysis import (INF, check_round_trip, clock_tolerance, digital_sum_bound,
+from linecraft.analysis import (INF, check_round_trip, clock_tolerance, digital_sum_bound,
                            max_run_length, min_mean_cycle, symbol_rate_bounds, tx_graph)
-from weft.linecodes import CODES, Machine, Step, run_rx, run_tx, usb
+from linecraft.linecodes import CODES, Machine, Step, run_rx, run_tx, usb
 
 
 @pytest.mark.parametrize("name", list(CODES))
@@ -105,7 +105,7 @@ def test_clock_tolerance():
 
 
 def test_cli_prints_a_row_per_code():
-    out = subprocess.run([sys.executable, "-m", "weft.analysis"], capture_output=True, text=True,
+    out = subprocess.run([sys.executable, "-m", "linecraft.analysis"], capture_output=True, text=True,
                          check=True, cwd=Path(__file__).parents[2]).stdout
     for name in CODES:
         assert name in out

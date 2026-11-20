@@ -1,6 +1,6 @@
 """Draw the README figures from the cycle accurate model and the toolchain.
 
-Every waveform here comes from `weft.model.Chip`, which the lockstep tests hold equal to the RTL on every pin and every cycle. Nothing is drawn by hand.
+Every waveform here comes from `linecraft.model.Chip`, which the lockstep tests hold equal to the RTL on every pin and every cycle. Nothing is drawn by hand.
 
 Run: python3 docs/make_figures.py
 """
@@ -16,8 +16,8 @@ from matplotlib.patches import FancyBboxPatch            # noqa: E402
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from weft import linecodes, protocols                   # noqa: E402
-from weft.model import Chip                              # noqa: E402
+from linecraft import linecodes, protocols                   # noqa: E402
+from linecraft.model import Chip                              # noqa: E402
 
 OUT = os.path.join(ROOT, "docs", "img")
 CLK = 40e6
@@ -127,7 +127,7 @@ def hero():
         yy = n_signals / 2 - 1.45 + k * 0.36
         ax.plot([-0.42, -0.39], [yy, yy], color="#9aa5b1", lw=2)
         ax.plot([-0.22, -0.19], [yy, yy], color="#9aa5b1", lw=2)
-    ax.text(-0.305, n_signals / 2 + 0.55, "Weft", color="white", ha="center", va="center", fontsize=20, weight="bold")
+    ax.text(-0.305, n_signals / 2 + 0.55, "Linecraft", color="white", ha="center", va="center", fontsize=20, weight="bold")
     ax.text(-0.305, n_signals / 2 - 0.25, "4 shuttles\nline coder\nCRC unit", color="#c9d2dc", ha="center",
             va="center", fontsize=8.5, linespacing=1.5)
 
@@ -142,7 +142,7 @@ def hero():
         ax.text(-0.085, (top + y) / 2 + 0.1, label, ha="right", va="center", fontsize=11, color=colour, weight="bold")
         ax.plot([-0.07, -0.07], [y + 0.12, top - 0.12], color=colour, lw=2.5, solid_capstyle="round")
     ax.text(-0.42, n_signals + 2.05, "One chip, many wire protocols", fontsize=17, color=INK, weight="bold")
-    ax.text(-0.42, n_signals + 1.3, "Each trace is a real pin waveform from the cycle accurate model of Weft, "
+    ax.text(-0.42, n_signals + 1.3, "Each trace is a real pin waveform from the cycle accurate model of Linecraft, "
             "loaded with a different program, line code table and CRC polynomial.", fontsize=9.5, color=MUTED)
     fig.savefig(os.path.join(OUT, "hero.png"), facecolor="white")
     plt.close(fig)
@@ -219,7 +219,7 @@ def tolerance_figure():
     ax.set_xlabel("transmitter clock error (%)")
     ax.set_ylim(-1, 14)
     ax.invert_yaxis()
-    ax.set_title("How much clock error a USB receiver on Weft survives", fontsize=11, color=INK, loc="left")
+    ax.set_title("How much clock error a USB receiver on Linecraft survives", fontsize=11, color=INK, loc="left")
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     ax.legend(frameon=False, fontsize=8.5, loc="lower left")
@@ -246,7 +246,7 @@ def verification_figure():
     ax.axis("off")
     box(ax, 0.02, 0.40, 0.15, 0.2, "docs/spec.md\none written spec", "#20262e", colour="white", weight="bold")
     box(ax, 0.24, 0.70, 0.19, 0.2, "Verilog RTL\nsrc/", "#dbe7f5")
-    box(ax, 0.24, 0.10, 0.19, 0.2, "Python model\nweft/model.py\nwritten separately", "#fbe6d4")
+    box(ax, 0.24, 0.10, 0.19, 0.2, "Python model\nlinecraft/model.py\nwritten separately", "#fbe6d4")
     arrow(ax, 0.17, 0.55, 0.24, 0.78)
     arrow(ax, 0.17, 0.45, 0.24, 0.22)
     box(ax, 0.48, 0.38, 0.22, 0.24, "Lockstep\nrandom programs, host traffic;\nevery pin and register\nequal on every cycle", "#e3f1e3", size=9)

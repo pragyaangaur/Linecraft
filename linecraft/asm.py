@@ -1,4 +1,4 @@
-"""Assembler for Weft shuttle programs, with a PIO-like syntax.
+"""Assembler for Linecraft shuttle programs, with a PIO-like syntax.
 
     .program uart_tx
     .side_set 1            ; optional; add "pindirs" to drive pe instead of pv
@@ -19,7 +19,7 @@ are taken as absolute addresses too.
 Because the hardware applies side-set bits on every instruction, a program
 that declares `.side_set N` with N > 0 must give `side` on every instruction.
 
-Run `python -m weft.asm file.weft` to print the words in hex.
+Run `python -m linecraft.asm file.linecraft` to print the words in hex.
 """
 
 import re
@@ -388,7 +388,7 @@ def disassemble(word, side_count=0):
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if len(argv) != 1:
-        print("usage: python -m weft.asm file.weft", file=sys.stderr)
+        print("usage: python -m linecraft.asm file.linecraft", file=sys.stderr)
         return 2
     with open(argv[0]) as f:
         source = f.read()

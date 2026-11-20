@@ -1,8 +1,8 @@
 """Small helpers shared by the model tests."""
 
-from weft.asm import assemble
-from weft.config import ShuttleConfig, setup_writes
-from weft.model import Chip
+from linecraft.asm import assemble
+from linecraft.config import ShuttleConfig, setup_writes
+from linecraft.model import Chip
 
 
 def load(chip, shuttle, source, **fields):

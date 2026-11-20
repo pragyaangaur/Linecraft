@@ -1,13 +1,13 @@
-"""CRC reference code and the mapping from catalogue CRCs to Weft settings.
+"""CRC reference code and the mapping from catalogue CRCs to Linecraft settings.
 
 Catalogue CRCs use the Rocksoft parameter model (width, poly, init, refin,
 refout, xorout, check, residue), as in the reveng catalogue.
 
-Weft's CRC unit is always a normal (MSB first) Galois LFSR fed with bits in
+Linecraft's CRC unit is always a normal (MSB first) Galois LFSR fed with bits in
 wire order. For a reflected CRC the bytes go out least significant bit first,
-and the Weft register then holds the reflected register bit-reversed. Because
+and the Linecraft register then holds the reflected register bit-reversed. Because
 the catalogue CRCs below all have init and xorout equal to 0 or all ones
-(both symmetric under reversal), Weft needs only the width and the normal
+(both symmetric under reversal), Linecraft needs only the width and the normal
 form polynomial, which is the catalogue `poly` as written.
 """
 
@@ -48,8 +48,8 @@ CATALOGUE["CRC-16/CCITT-FALSE"] = CATALOGUE["CRC-16/IBM-3740"]
 
 
 @dataclass(frozen=True)
-class WeftCrc:
-    """Settings for Weft's CRC unit.
+class LinecraftCrc:
+    """Settings for Linecraft's CRC unit.
 
     `check` is the value for CRC_CHECK: the raw register after a correct
     message and its CRC have been fed, so that JMP CRCOK tests a received frame.
@@ -69,7 +69,7 @@ class WeftCrc:
 
 
 def crc_reference(spec, data):
-    """Bitwise Rocksoft CRC of `data` (bytes). Independent of the Weft code path."""
+    """Bitwise Rocksoft CRC of `data` (bytes). Independent of the Linecraft code path."""
     mask = (1 << spec.width) - 1
     top = 1 << (spec.width - 1)
     reg = spec.init
@@ -98,34 +98,34 @@ def crc_wire_bits(spec, value):
     return [(value >> i) & 1 for i in order]
 
 
-def weft_register(settings, bits):
-    """Raw Weft CRC register after feeding `bits` (wire order) from the init value."""
+def linecraft_register(settings, bits):
+    """Raw Linecraft CRC register after feeding `bits` (wire order) from the init value."""
     init = settings.mask if settings.init_ones else 0
     return crc_advance(init, bits, settings.width, settings.poly) & settings.mask
 
 
-def weft_result(settings, bits):
+def linecraft_result(settings, bits):
     """What MOV reads from the CRC: (register XOR xorout), masked."""
     xorout = settings.mask if settings.xorout_ones else 0
-    return weft_register(settings, bits) ^ xorout
+    return linecraft_register(settings, bits) ^ xorout
 
 
-def weft_sent_bits(settings, bits):
+def linecraft_sent_bits(settings, bits):
     """The bits MOV OSR, CRC followed by OUTs sends: r[W-1] first."""
-    r = weft_result(settings, bits)
+    r = linecraft_result(settings, bits)
     return [(r >> i) & 1 for i in range(settings.width - 1, -1, -1)]
 
 
-def weft_settings(spec):
-    """Convert a catalogue CRC into Weft settings. Raises ValueError if Weft cannot do it."""
+def linecraft_settings(spec):
+    """Convert a catalogue CRC into Linecraft settings. Raises ValueError if Linecraft cannot do it."""
     mask = (1 << spec.width) - 1
     if spec.refin != spec.refout:
         raise ValueError(f"{spec.name}: refin != refout is not supported")
     for what, value in (("init", spec.init), ("xorout", spec.xorout)):
         if value not in (0, mask):
             raise ValueError(f"{spec.name}: {what} must be 0 or all ones")
-    partial = WeftCrc(spec.width, spec.poly, spec.init == mask, spec.xorout == mask, 0, spec.refin)
+    partial = LinecraftCrc(spec.width, spec.poly, spec.init == mask, spec.xorout == mask, 0, spec.refin)
     # The residue is the same for every correct frame; compute it from an empty one.
     frame = crc_wire_bits(spec, crc_reference(spec, b""))
-    return WeftCrc(partial.width, partial.poly, partial.init_ones, partial.xorout_ones,
-                   weft_register(partial, frame), partial.lsb_first)
+    return LinecraftCrc(partial.width, partial.poly, partial.init_ones, partial.xorout_ones,
+                   linecraft_register(partial, frame), partial.lsb_first)

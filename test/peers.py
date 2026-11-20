@@ -1,6 +1,6 @@
 """Independent models of the devices on the other end of the wire.
 
-These are written from the protocol standards and share no code with the Weft toolchain, so a test that passes here checks the chip against the protocol itself and not against our own idea of it.
+These are written from the protocol standards and share no code with the Linecraft toolchain, so a test that passes here checks the chip against the protocol itself and not against our own idea of it.
 """
 
 import cocotb

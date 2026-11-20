@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from weft import isa
-from weft.asm import AsmError, assemble, disassemble
+from linecraft import isa
+from linecraft.asm import AsmError, assemble, disassemble
 
 
 def test_basic_program():
@@ -152,9 +152,9 @@ def test_error_line_number():
 
 
 def test_cli(tmp_path):
-    src = tmp_path / "t.weft"
+    src = tmp_path / "t.linecraft"
     src.write_text("set x, 1\njmp 0\n")
-    out = subprocess.run([sys.executable, "-m", "weft.asm", str(src)],
+    out = subprocess.run([sys.executable, "-m", "linecraft.asm", str(src)],
                          capture_output=True, text=True, check=True,
                          cwd=Path(__file__).parents[2]).stdout
     assert out.split() == ["700101", "000000"]

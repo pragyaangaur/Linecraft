@@ -1,10 +1,10 @@
-# The mathematics behind Weft
+# The mathematics behind Linecraft
 
 This page gives the arguments behind the mathematical claims in the README: the clock tolerance bound for a resynchronising receiver, receiver synthesis, address matching with a CRC, and zero drift in the fractional divider. The code that checks each claim is named in its section.
 
 ## 1. Line coder tables as automata
 
-A line coder table maps a state q and an input bit b to an entry (q', o, t, f): a next state, an output bit, a transfer bit and a flag. On transmit, b is the next data bit in the OSR, o is the line symbol, and t says whether b was used. If t = 0, the hardware reads the same b again on the next step, because the OSR did not shift. So the true state of a transmitter is a configuration (q, h), where h is either a data bit that has been read but not used, or nothing. From (q, nothing) both values of b are possible. From (q, h) only b = h is possible. This configuration graph is finite, with at most 48 nodes, and every analysis in `weft/analysis.py` runs on it.
+A line coder table maps a state q and an input bit b to an entry (q', o, t, f): a next state, an output bit, a transfer bit and a flag. On transmit, b is the next data bit in the OSR, o is the line symbol, and t says whether b was used. If t = 0, the hardware reads the same b again on the next step, because the OSR did not shift. So the true state of a transmitter is a configuration (q, h), where h is either a data bit that has been read but not used, or nothing. From (q, nothing) both values of b are possible. From (q, h) only b = h is possible. This configuration graph is finite, with at most 48 nodes, and every analysis in `linecraft/analysis.py` runs on it.
 
 Each edge of the graph emits exactly one symbol. So paths in the graph are exactly the symbol sequences the transmitter can send, and properties of all possible line signals become path properties of a small graph.
 
@@ -30,7 +30,7 @@ j(1 + d) < p + j   and   p + j < (j + 1)(1 + d).
 
 The first inequality is j d < p. It can only fail for d > 0, worst at j = r - 1 ≤ R - 1 and at the earliest position p = s, which gives d < s / (R - 1). The second inequality is p - 1 < (j + 1) d. It can only fail for d < 0, worst at j + 1 = r ≤ R and at the latest position p = s + (k - 1)/k, which gives d > -(1/k - s) / R. The next edge restarts the ticks, so the error never builds up past one run, and the same holds for every run.
 
-Real timing costs a little on each side. The edge reaches the divider through a two flop synchronizer, and the transmitter's and the receiver's fractional dividers each jitter by up to a cycle, so with M clock cycles per symbol each margin loses q/M for a q of one or two cycles. The position s is not set by `SYNC_PHASE` alone either. After an edge the first tick comes `SYNC_PHASE` + 3 cycles later, and an `IN` reads pins that are two cycles old, so s = (P + 1)/M for `SYNC_PHASE` = P. The README and `weft.analysis` use the simpler and safer form with R on both sides,
+Real timing costs a little on each side. The edge reaches the divider through a two flop synchronizer, and the transmitter's and the receiver's fractional dividers each jitter by up to a cycle, so with M clock cycles per symbol each margin loses q/M for a q of one or two cycles. The position s is not set by `SYNC_PHASE` alone either. After an edge the first tick comes `SYNC_PHASE` + 3 cycles later, and an `IN` reads pins that are two cycles old, so s = (P + 1)/M for `SYNC_PHASE` = P. The README and `linecraft.analysis` use the simpler and safer form with R on both sides,
 
 ```
 -(1/k - s - q/M) / R  <  d  <  (s - q/M) / R.
@@ -40,7 +40,7 @@ Real timing costs a little on each side. The edge reaches the divider through a 
 
 ## 3. Receiver synthesis
 
-**Construction.** `weft/synth.py` builds a receiver from a transmit table by the subset construction. A receiver state is a set S of transmitter configurations, starting with {(q0, nothing)}. On a symbol o, collect every edge from a configuration in S whose symbol is o.
+**Construction.** `linecraft/synth.py` builds a receiver from a transmit table by the subset construction. A receiver state is a set S of transmitter configurations, starting with {(q0, nothing)}. On a symbol o, collect every edge from a configuration in S whose symbol is o.
 
 - If there are none, no transmitter could have sent o. The receiver raises its flag and returns to the start set.
 - If all of them have t = 0, the receiver emits nothing.
@@ -57,7 +57,7 @@ For the six built-in codes, the synthesised receivers have the same number of st
 
 ## 4. Address matching with a CRC
 
-A CRC of width W with a polynomial g that has a constant term maps a W bit message m(x) to m(x) x^W mod g(x). Since g(0) = 1, x is invertible modulo g, so this map is a bijection on messages of W bits or fewer. Two different 8 bit address bytes therefore always leave different values in an 8 bit CRC register, and `JMP CRCOK` with `CRC_CHECK` set to the CRC of the expected byte is an exact equality test. `programs/i2c_target.weft` uses this to recognise its own I2C address without a compare instruction.
+A CRC of width W with a polynomial g that has a constant term maps a W bit message m(x) to m(x) x^W mod g(x). Since g(0) = 1, x is invertible modulo g, so this map is a bijection on messages of W bits or fewer. Two different 8 bit address bytes therefore always leave different values in an 8 bit CRC register, and `JMP CRCOK` with `CRC_CHECK` set to the CRC of the expected byte is an exact equality test. `programs/i2c_target.linecraft` uses this to recognise its own I2C address without a compare instruction.
 
 ## 5. Zero drift in the fractional divider
 

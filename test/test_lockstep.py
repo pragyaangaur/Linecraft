@@ -14,10 +14,10 @@ from cocotb.triggers import FallingEdge, ReadOnly, RisingEdge
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from weft.model import Chip                        # noqa: E402
-from weft.config import ShuttleConfig, setup_writes  # noqa: E402
-from weft.asm import disassemble                    # noqa: E402
-from weft_host import Host, reset                  # noqa: E402
+from linecraft.model import Chip                        # noqa: E402
+from linecraft.config import ShuttleConfig, setup_writes  # noqa: E402
+from linecraft.asm import disassemble                    # noqa: E402
+from linecraft_host import Host, reset                  # noqa: E402
 
 TRIALS = int(os.environ.get("LOCKSTEP_TRIALS", "12"))
 OPS = ["JMP", "WAIT", "IN", "OUT", "PUSH", "PULL", "MOV", "SET", "IRQ", "CTL"]
@@ -78,7 +78,7 @@ COVERAGE = Coverage()
 CYCLES = int(os.environ.get("LOCKSTEP_CYCLES", "600"))
 SEED = int(os.environ.get("LOCKSTEP_SEED", "1"))
 HOST_TRAFFIC = os.environ.get("LOCKSTEP_HOST_TRAFFIC", "1") == "1"
-NS = int(os.environ.get("WEFT_NS", "4"))      # must match NS in src/project.v
+NS = int(os.environ.get("LINECRAFT_NS", "4"))      # must match NS in src/project.v
 
 
 def random_instruction(rng):

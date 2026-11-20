@@ -2,10 +2,10 @@
 
 import json
 
-from weft import protocols
-from weft.export import main as export_main
-from weft.model import Chip
-from weft.crc import CATALOGUE, crc_reference
+from linecraft import protocols
+from linecraft.export import main as export_main
+from linecraft.model import Chip
+from linecraft.crc import CATALOGUE, crc_reference
 
 CLK = 50e6
 

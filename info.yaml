@@ -1,6 +1,6 @@
 # Tiny Tapeout project information
 project:
-  title:        "Weft protocol emulator"      # Project title
+  title:        "Linecraft protocol emulator"      # Project title
   author:       "Pragyaan Gaur"      # Your name
   discord:      ""      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
   description:  "Four programmable shuttles with line-coder transducers and CRC units that bit-bang serial protocols"      # One line description of what your project does
@@ -11,16 +11,16 @@ project:
   tiles: "8x4"          # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 6x2, 8x2, 3x4, 4x4, 5x4, 6x4 or 8x4
 
   # Your top module name must start with "tt_um_". Make it unique by including your github username:
-  top_module:  "tt_um_pragyaangaur_weft"
+  top_module:  "tt_um_pragyaangaur_linecraft"
 
   # List your project's source files here.
   # Source files must be in ./src and you must list each source file separately, one per line.
   # Don't forget to also update `PROJECT_SOURCES` in test/Makefile.
   source_files:
     - "project.v"
-    - "weft_host.v"
-    - "weft_shuttle.v"
-    - "weft_divider.v"
+    - "linecraft_host.v"
+    - "linecraft_shuttle.v"
+    - "linecraft_divider.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 # This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).

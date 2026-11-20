@@ -1,22 +1,22 @@
 """Ready-made protocol setups.
 
-Each function returns the list of (address, byte) host writes that loads one protocol onto one shuttle: the program at a chosen origin, the configuration, the line coder table and the CRC settings. The writes end with a restart of that shuttle. They can be replayed by the cocotb host driver, by `weft.model.Chip.write_all`, or by the RP2350 driver in host/ after `python -m weft.export` has saved them as JSON.
+Each function returns the list of (address, byte) host writes that loads one protocol onto one shuttle: the program at a chosen origin, the configuration, the line coder table and the CRC settings. The writes end with a restart of that shuttle. They can be replayed by the cocotb host driver, by `linecraft.model.Chip.write_all`, or by the RP2350 driver in host/ after `python -m linecraft.export` has saved them as JSON.
 
-Pin numbers are Weft pin indices: 0 to 7 are ui_in and uo_out, 8 to 15 are the bidirectional uio pins. Pins 5, 6 and 7 of ui_in and pin 7 of uo_out belong to the host port.
+Pin numbers are Linecraft pin indices: 0 to 7 are ui_in and uo_out, 8 to 15 are the bidirectional uio pins. Pins 5, 6 and 7 of ui_in and pin 7 of uo_out belong to the host port.
 """
 
 import os
 
 from .asm import assemble
 from .config import CRC_RX, CRC_TX, ShuttleConfig, setup_writes
-from .crc import CATALOGUE, weft_settings
+from .crc import CATALOGUE, linecraft_settings
 from . import linecodes
 
 PROGRAMS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "programs")
 
 
 def program(name, origin=0, defines=None):
-    with open(os.path.join(PROGRAMS, name + ".weft")) as f:
+    with open(os.path.join(PROGRAMS, name + ".linecraft")) as f:
         text = f.read()
     for key, value in (defines or {}).items():
         lines = [f".define {key} {value}" if line.strip().startswith(f".define {key} ") else line
@@ -78,7 +78,7 @@ def i2c(shuttle, sda_pin, scl_hz, clk_hz, read=False, origin=0):
 
 
 def i2c_target(shuttle, sda_pin, address, origin=0):
-    """SCL is sda_pin + 1. The CRC unit matches the address byte (see programs/i2c_target.weft)."""
+    """SCL is sda_pin + 1. The CRC unit matches the address byte (see programs/i2c_target.linecraft)."""
     from .crc import crc_reference
     if not 8 <= sda_pin <= 14:
         raise ValueError("I2C needs two bidirectional pins, 8 to 15")
@@ -89,7 +89,7 @@ def i2c_target(shuttle, sda_pin, address, origin=0):
     return _done(shuttle, cfg, program("i2c_target", origin, {"SCL": sda_pin + 1}))
 
 
-USB_CRC = weft_settings(CATALOGUE["CRC-16/USB"])
+USB_CRC = linecraft_settings(CATALOGUE["CRC-16/USB"])
 
 
 def usb_ls_tx(shuttle, dminus_pin, clk_hz, origin=0):
@@ -118,7 +118,7 @@ def can_tx(shuttle, tx_pin, bitrate, clk_hz, origin=0):
     cfg = ShuttleConfig(out_base=tx_pin, set_base=tx_pin, set_count=1, autopull=True, pull_thresh=8)
     cfg.set_rate(clk_hz, 4 * bitrate)
     cfg.use_line_code(linecodes.can(), "tx")
-    cfg.use_crc(weft_settings(CATALOGUE["CRC-15/CAN"]), CRC_TX)
+    cfg.use_crc(linecraft_settings(CATALOGUE["CRC-15/CAN"]), CRC_TX)
     return _done(shuttle, cfg, program("can_tx", origin))
 
 

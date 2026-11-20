@@ -5,7 +5,7 @@
     </marker>
   </defs>
   <rect width="760" height="430" fill="white"/>
-  <text x="380" y="17" text-anchor="middle" font-size="15" font-weight="bold">Weft: one of four shuttles, and what they share</text>
+  <text x="380" y="17" text-anchor="middle" font-size="15" font-weight="bold">Linecraft: one of four shuttles, and what they share</text>
 
   <!-- shared blocks -->
   <rect x="20" y="45" width="150" height="70" rx="6" fill="#eef2f7" stroke="#5b7aa1"/>

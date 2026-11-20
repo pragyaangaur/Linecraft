@@ -1,14 +1,14 @@
-"""MicroPython driver for Weft on the Tiny Tapeout demo board's RP2350.
+"""MicroPython driver for Linecraft on the Tiny Tapeout demo board's RP2350.
 
 This has not been run on hardware yet. It follows the host port in docs/spec.md: SPI mode 0, MSB first, SCK at most one eighth of the chip clock, a two byte header {rw, addr[14:8]}, addr[7:0], then data bytes.
 
     from machine import Pin, SPI
-    import weft_rp2350 as weft
+    import linecraft_rp2350 as linecraft
 
     spi = SPI(0, baudrate=5_000_000, polarity=0, phase=0,
               sck=Pin(SCK_GPIO), mosi=Pin(MOSI_GPIO), miso=Pin(MISO_GPIO))
-    chip = weft.Weft(spi, Pin(CS_GPIO, Pin.OUT, value=1))
-    chip.load("uart.json")          # made by: python -m weft.export uart_tx ...
+    chip = linecraft.Linecraft(spi, Pin(CS_GPIO, Pin.OUT, value=1))
+    chip.load("uart.json")          # made by: python -m linecraft.export uart_tx ...
     chip.enable(0b0001)
     chip.push(0, b"hello")
 
@@ -21,7 +21,7 @@ FIFO = 0x008
 ENABLE, RESTART, IRQ, IRQ_SET, STATUS, LEVEL01, LEVEL23 = 0x001, 0x002, 0x003, 0x004, 0x005, 0x006, 0x007
 
 
-class Weft:
+class Linecraft:
     def __init__(self, spi, cs):
         self.spi = spi
         self.cs = cs
@@ -45,7 +45,7 @@ class Weft:
         return self.read(0x000)[0]          # 0x4C
 
     def load(self, path):
-        """Replay the writes in a JSON file from `python -m weft.export`, merging consecutive addresses."""
+        """Replay the writes in a JSON file from `python -m linecraft.export`, merging consecutive addresses."""
         with open(path) as f:
             writes = json.load(f)["writes"]
         i = 0

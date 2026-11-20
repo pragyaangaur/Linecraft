@@ -4,9 +4,9 @@ import random
 
 import pytest
 
-from weft.analysis import check_round_trip
-from weft.linecodes import CODES, pack_entry, run_rx, run_tx
-from weft.synth import SynthesisError, synthesize_rx, _used_states
+from linecraft.analysis import check_round_trip
+from linecraft.linecodes import CODES, pack_entry, run_rx, run_tx
+from linecraft.synth import SynthesisError, synthesize_rx, _used_states
 
 
 @pytest.mark.parametrize("name", sorted(CODES))

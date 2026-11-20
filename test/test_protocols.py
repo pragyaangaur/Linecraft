@@ -10,12 +10,12 @@ from cocotb.triggers import ClockCycles, RisingEdge
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from weft.asm import assemble                      # noqa: E402
-from weft.config import ShuttleConfig, setup_writes, CRC_TX, CRC_RX   # noqa: E402
-from weft import linecodes                          # noqa: E402
-from weft.crc import CATALOGUE, weft_settings       # noqa: E402
+from linecraft.asm import assemble                      # noqa: E402
+from linecraft.config import ShuttleConfig, setup_writes, CRC_TX, CRC_RX   # noqa: E402
+from linecraft import linecodes                          # noqa: E402
+from linecraft.crc import CATALOGUE, linecraft_settings       # noqa: E402
 
-from weft_host import Host, reset                  # noqa: E402
+from linecraft_host import Host, reset                  # noqa: E402
 from peers import SpiTarget, I2cTarget, usb_ls_decode, crc16_usb   # noqa: E402
 from test import capture_uart                      # noqa: E402
 
@@ -23,7 +23,7 @@ CLK_HZ = 50e6
 
 
 def program(name, origin=0):
-    with open(os.path.join(ROOT, "programs", name + ".weft")) as f:
+    with open(os.path.join(ROOT, "programs", name + ".linecraft")) as f:
         return assemble(f".origin {origin}\n" + f.read())
 
 
@@ -111,7 +111,7 @@ SPI_MODES = {0: (0, 0, 1), 1: (0, 1, 0), 2: (1, 1, 0), 3: (1, 0, 1)}   # IDLE, S
 
 def spi_program(mode):
     idle, shift, sample = SPI_MODES[mode]
-    with open(os.path.join(ROOT, "programs", "spi_master.weft")) as f:
+    with open(os.path.join(ROOT, "programs", "spi_master.linecraft")) as f:
         text = f.read()
     text = text.replace(".define IDLE 0", f".define IDLE {idle}")
     text = text.replace(".define SHIFT 0", f".define SHIFT {shift}")
@@ -180,7 +180,7 @@ async def test_i2c_write_nack(dut):
 # ----------------------------------------------------------------------
 
 CPB = CLK_HZ / 1.5e6           # 33.33 clock cycles per USB low speed bit
-USB_CRC = weft_settings(CATALOGUE["CRC-16/USB"])
+USB_CRC = linecraft_settings(CATALOGUE["CRC-16/USB"])
 
 
 def usb_tx_config(rate_scale=1.0):
@@ -200,7 +200,7 @@ def usb_rx_config(sync_phase=7, synthesised=False):
     cfg.use_line_code(linecodes.usb(), "rx")
     if synthesised:
         # Replace the hand-written receiver with one derived from the transmitter.
-        from weft.synth import synthesize_rx
+        from linecraft.synth import synthesize_rx
         code = linecodes.usb()
         rx = synthesize_rx(code.tx, code.tx_init)
         cfg.fst_table, cfg.fst_init = rx.table, rx.init
@@ -244,7 +244,7 @@ async def test_usb_ls_tx(dut):
 async def test_usb_ls_loopback(dut, synthesised):
     """Shuttle 0 sends a packet and shuttle 1 receives it on the same pins, checking the CRC.
 
-    With `synthesised`, the receiver's line coder table is the one weft.synth derives from the transmit table.
+    With `synthesised`, the receiver's line coder table is the one linecraft.synth derives from the transmit table.
     """
     host = await start(dut)
     await load(host, 0, usb_tx_config(), program("usb_ls_tx"))
@@ -290,7 +290,7 @@ async def test_can_tx(dut):
     cfg = ShuttleConfig(out_base=1, set_base=1, set_count=1, autopull=True, pull_thresh=8)
     cfg.set_ratio(8)                                   # 32 cycles per bit
     cfg.use_line_code(linecodes.can(), "tx")
-    cfg.use_crc(weft_settings(CATALOGUE["CRC-15/CAN"]), CRC_TX)
+    cfg.use_crc(linecraft_settings(CATALOGUE["CRC-15/CAN"]), CRC_TX)
     await load(host, 0, cfg, program("can_tx"))
     await host.write(0x001, 0x1)
     await ClockCycles(dut.clk, 20)
@@ -537,11 +537,11 @@ async def test_i2c_read(dut):
 async def test_biphase_mark_from_a_transmit_rule(dut):
     """Biphase mark code, defined here as a 4 state transmit rule in a few lines.
 
-    weft.synth derives the receiver, weft.analysis proves the round trip and the run length, and the chip runs the pair in loopback with edge resync.
+    linecraft.synth derives the receiver, linecraft.analysis proves the round trip and the run length, and the chip runs the pair in loopback with edge resync.
     """
-    from weft.linecodes import Machine, Step
-    from weft.synth import synthesize_rx
-    from weft.analysis import check_round_trip, max_run_length
+    from linecraft.linecodes import Machine, Step
+    from linecraft.synth import synthesize_rx
+    from linecraft.analysis import check_round_trip, max_run_length
 
     # State (level, half): every bit starts with a transition, and a 1 has a
     # second transition in the middle. The data bit is used on the second half.
@@ -735,7 +735,7 @@ async def test_i2c_target(dut):
 
     The address is matched by the CRC unit. A write to another address must be ignored.
     """
-    from weft.protocols import i2c_target
+    from linecraft.protocols import i2c_target
     host = await start(dut)
     await host.write_many(i2c_target(0, sda_pin=8, address=0x42))
     await host.write(0x001, 0x1)
@@ -812,12 +812,12 @@ async def test_i2c_target(dut):
 async def test_onewire_read_rom(dut, corrupt):
     """READ ROM from a device model; the chip checks the ROM's Maxim CRC-8 with its CRC unit."""
     from peers import OneWireDevice, crc8_maxim
-    from weft.crc import CrcSpec
+    from linecraft.crc import CrcSpec
     host = await start(dut)
     us = 4                                             # clock cycles per microsecond in this test
     cfg = ShuttleConfig(set_base=8, set_count=1, out_base=8, in_base=8, out_right=True, in_right=True)
     cfg.set_ratio(us)
-    cfg.use_crc(weft_settings(CrcSpec("CRC-8/MAXIM-DOW", 8, 0x31, 0, True, True, 0, 0xA1, 0)), CRC_RX)
+    cfg.use_crc(linecraft_settings(CrcSpec("CRC-8/MAXIM-DOW", 8, 0x31, 0, True, True, 0, 0xA1, 0)), CRC_RX)
     await load(host, 0, cfg, program("onewire"))
     body = [0x28, 0xFF, 0x4C, 0x92, 0x61, 0x16, 0x04]  # family code 0x28 and a serial number
     rom = body + [crc8_maxim(body) ^ (0x01 if corrupt else 0)]

@@ -1,4 +1,4 @@
-<h1 align="center">Weft</h1>
+<h1 align="center">Linecraft</h1>
 
 <p align="center">
 A small chip that learns new wire protocols from software and can prove things about them before it runs them.<br>
@@ -12,13 +12,13 @@ An entry for the Jane Street protocol emulator ASIC competition, on the Tiny Tap
 <img alt="Apache 2.0 licence" src="https://img.shields.io/badge/licence-Apache%202.0-lightgrey">
 </p>
 
-![Six protocols as real pin waveforms from the cycle accurate model of Weft](docs/img/hero.png)
+![Six protocols as real pin waveforms from the cycle accurate model of Linecraft](docs/img/hero.png)
 
 Every gadget talks to other chips over a few wires. A sensor uses I2C, a flash chip uses SPI, a keyboard uses USB and a car uses CAN. Each of these is a protocol, which is a set of rules about when a wire goes high or low and what the pattern means. A normal chip has fixed hardware for each protocol it knows, and it is stuck when it meets one it does not know.
 
-[Jane Street's competition](https://blog.janestreet.com/protocol-emulator-asic-competition/) asks for one small chip that can learn any protocol from software. Weft is my entry. You send it a short program over SPI, and it starts to speak that protocol on its pins. The picture above shows six of them, and every trace in it is a real pin waveform from the cycle accurate model of the chip.
+[Jane Street's competition](https://blog.janestreet.com/protocol-emulator-asic-competition/) asks for one small chip that can learn any protocol from software. Linecraft is my entry. You send it a short program over SPI, and it starts to speak that protocol on its pins. The picture above shows six of them, and every trace in it is a real pin waveform from the cycle accurate model of the chip.
 
-Programmable protocol engines already exist. The RP2040's PIO is the best known one, and several entries in this competition build something similar. Weft adds one idea on top. Most protocols reshape their bits with a small rule called a line code before the bits reach the wire, and in Weft that rule is a table in hardware. A table is a finite state machine, so the toolchain can reason about a line code before the chip ever runs it.
+Programmable protocol engines already exist. The RP2040's PIO is the best known one, and several entries in this competition build something similar. Linecraft adds one idea on top. Most protocols reshape their bits with a small rule called a line code before the bits reach the wire, and in Linecraft that rule is a table in hardware. A table is a finite state machine, so the toolchain can reason about a line code before the chip ever runs it.
 
 - It **proves** that the receiver always gives back exactly what the transmitter sent.
 - It **predicts** how much clock error between two chips the link survives. I measured the prediction in simulation, and it holds at every setting I tried, to within 0.4 percent.
@@ -40,9 +40,9 @@ Programmable protocol engines already exist. The RP2040's PIO is the best known 
 
 ## What is inside the chip
 
-![Weft architecture](docs/img/architecture.svg)
+![Linecraft architecture](docs/img/architecture.svg)
 
-Weft has four small processors that I call shuttles, after the part of a loom that carries the thread. They share one memory of 64 instructions. Each shuttle moves bits between its pins and its FIFOs with exact cycle timing, and each has three pieces of hardware that the host can reprogram.
+Linecraft has four small processors that I call shuttles, after the part of a loom that carries the thread. They share one memory of 64 instructions. Each shuttle moves bits between its pins and its FIFOs with exact cycle timing, and each has three pieces of hardware that the host can reprogram.
 
 | Part | What it does |
 | --- | --- |
@@ -71,7 +71,7 @@ bit:
 .wrap
 ```
 
-The assembler in [weft/asm.py](weft/asm.py) turns this into 24 bit words, and [weft/protocols.py](weft/protocols.py) adds the configuration for each protocol. A USB or CAN transmitter is not much longer, because the line coder does the stuffing and the CRC unit makes the check bits.
+The assembler in [linecraft/asm.py](linecraft/asm.py) turns this into 24 bit words, and [linecraft/protocols.py](linecraft/protocols.py) adds the configuration for each protocol. A USB or CAN transmitter is not much longer, because the line coder does the stuffing and the CRC unit makes the check bits.
 
 ## Line codes as tables
 
@@ -79,9 +79,9 @@ The assembler in [weft/asm.py](weft/asm.py) turns this into 24 bit words, and [w
 
 A line code turns data bits into the symbols that go on the wire. NRZI marks a 0 with a change of level. Manchester sends two symbols for every bit, so the line never stays still for long. USB inserts an extra symbol after six 1s in a row, so the receiver always sees a change often enough to keep its clock in step. That inserted bit is the shaded one in the picture.
 
-Each entry in a Weft table holds the next state, the output symbol and one extra bit that says whether this step used a data bit. That one bit lets a single table format describe codes that send more symbols than they receive bits. NRZI needs 2 states, Manchester 3, HDLC 6, CAN 11 and USB 14.
+Each entry in a Linecraft table holds the next state, the output symbol and one extra bit that says whether this step used a data bit. That one bit lets a single table format describe codes that send more symbols than they receive bits. NRZI needs 2 states, Manchester 3, HDLC 6, CAN 11 and USB 14.
 
-Since a table is a finite automaton, the toolchain can analyse it exactly. `python -m weft.analysis` does this for every built-in code.
+Since a table is a finite automaton, the toolchain can analyse it exactly. `python -m linecraft.analysis` does this for every built-in code.
 
 | Code | States | Round trip | Longest run R | Symbols per bit |
 | --- | --- | --- | --- | --- |
@@ -111,7 +111,7 @@ My first version of this bound was symmetric, and the experiment broke it on one
 
 ## Receivers from transmitters
 
-Writing a decoder table by hand is where line code bugs live, so the toolchain derives it. [weft/synth.py](weft/synth.py) takes only the transmit table. The receiver keeps track of the set of transmitter states that could have produced the symbols seen so far, which is the subset construction from automata theory. On each symbol it outputs a bit only when every possible transmitter step used that same bit, and it raises an error flag when no transmitter could have sent the symbol. Moore minimisation then merges equal states, and the round trip checker proves the result.
+Writing a decoder table by hand is where line code bugs live, so the toolchain derives it. [linecraft/synth.py](linecraft/synth.py) takes only the transmit table. The receiver keeps track of the set of transmitter states that could have produced the symbols seen so far, which is the subset construction from automata theory. On each symbol it outputs a bit only when every possible transmitter step used that same bit, and it raises an error flag when no transmitter could have sent the symbol. Moore minimisation then merges equal states, and the round trip checker proves the result.
 
 | Code | Hand-written receiver | Derived receiver | Round trip |
 | --- | --- | --- | --- |
@@ -130,7 +130,7 @@ The best test of flexibility is a protocol the chip was not designed for. Biphas
 
 ## The protocols
 
-Every program is in [programs/](programs), and every test drives the chip only through its pins and its SPI port. Each protocol is checked by a peer model written separately from the Weft toolchain.
+Every program is in [programs/](programs), and every test drives the chip only through its pins and its SPI port. Each protocol is checked by a peer model written separately from the Linecraft toolchain.
 
 | Protocol | Program | Checked by |
 | --- | --- | --- |
@@ -156,11 +156,11 @@ Every program is in [programs/](programs), and every test drives the chip only t
 
 ![How the RTL and the model check each other](docs/img/verification.png)
 
-I wrote the Verilog in [src/](src) from [docs/spec.md](docs/spec.md). A cycle accurate Python model in [weft/model.py](weft/model.py) was written separately from the same spec, and the tests hold the two against each other and against the protocol peers.
+I wrote the Verilog in [src/](src) from [docs/spec.md](docs/spec.md). A cycle accurate Python model in [linecraft/model.py](linecraft/model.py) was written separately from the same spec, and the tests hold the two against each other and against the protocol peers.
 
 - **Lockstep random testing** ([test/test_lockstep.py](test/test_lockstep.py)). Each trial loads a random 64 instruction program and random settings for all four shuttles into both the RTL and the model, then drives random pin inputs while a host pushes and pops FIFO bytes over SPI. On every clock cycle it compares every output pin, the interrupt flags and fifteen registers of every shuttle. Two campaigns of 200 trials of 1000 cycles each found no differences. Functional coverage shows that every opcode runs, every opcode that can stall does stall, and every jump condition is seen both taken and not taken ([docs/lockstep_coverage.txt](docs/lockstep_coverage.txt)).
 - **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against the peer models in [test/peers.py](test/peers.py), which share no code with the toolchain.
-- **Toolchain tests** in [weft/tests](weft/tests), 173 of them. They cover the assembler, every CRC in the catalogue sent bit for bit on the wire (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8 and others), the line code analyses and receiver synthesis.
+- **Toolchain tests** in [linecraft/tests](linecraft/tests), 173 of them. They cover the assembler, every CRC in the catalogue sent bit for bit on the wire (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8 and others), the line code analyses and receiver synthesis.
 - **Gate level simulation** ([scripts/postsynth_sim.sh](scripts/postsynth_sim.sh)). The RTL is synthesised to gates and all 27 pin level tests run again on the netlist.
 - **Formal proofs** ([formal/run.sh](formal/run.sh)), which hold on every cycle of every run.
   - The fractional divider has zero long term drift. Tick k always falls at exactly floor(k(N + F/256)) cycles, proved by k-induction for every divider setting.
@@ -171,7 +171,7 @@ The tests found real bugs, and each one is fixed. The lockstep run found a gap i
 
 ## Fitting it on the chip
 
-Weft targets an 8x4 tile slot on the Tiny Tapeout IHP 130 nm shuttle, which gives about 1.2 mm² for the core. Fitting four shuttles took some work, and the history is honest about it.
+Linecraft targets an 8x4 tile slot on the Tiny Tapeout IHP 130 nm shuttle, which gives about 1.2 mm² for the core. Fitting four shuttles took some work, and the history is honest about it.
 
 | Attempt | Result |
 | --- | --- |
@@ -189,9 +189,9 @@ You need Python 3.10 or later, [Icarus Verilog](https://steveicarus.github.io/iv
 
 ```bash
 pip install cocotb pytest matplotlib
-python -m pytest weft -q
-python -m weft.asm programs/usb_ls_tx.weft
-python -m weft.analysis
+python -m pytest linecraft -q
+python -m linecraft.asm programs/usb_ls_tx.linecraft
+python -m linecraft.analysis
 python experiments/cdr_sweep.py --plot sweep.svg
 python docs/make_figures.py
 cd test && make
@@ -199,10 +199,10 @@ cd test && make
 
 `scripts/check_all.sh` runs everything, including the proofs. Make cannot handle a project path that contains spaces, so run the cocotb tests from a path without them.
 
-To use a real chip, `python -m weft.export` saves any protocol's setup as JSON, and [host/weft_rp2350.py](host/weft_rp2350.py) is a MicroPython driver for the RP2350 on the Tiny Tapeout demo board that loads it over SPI. The driver has not run on hardware yet.
+To use a real chip, `python -m linecraft.export` saves any protocol's setup as JSON, and [host/linecraft_rp2350.py](host/linecraft_rp2350.py) is a MicroPython driver for the RP2350 on the Tiny Tapeout demo board that loads it over SPI. The driver has not run on hardware yet.
 
 ```bash
-python -m weft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=40e6 > uart.json
+python -m linecraft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=40e6 > uart.json
 ```
 
 ## What is in this repository
@@ -213,8 +213,8 @@ python -m weft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=40e6 > uart.
 | [`docs/spec.md`](docs/spec.md) | The architecture, instruction set and register map |
 | [`docs/theory.md`](docs/theory.md) | The arguments behind the clock bound, receiver synthesis and the divider proof |
 | [`docs/new_protocol.md`](docs/new_protocol.md) | How to add a protocol the chip was not designed for |
-| [`programs/`](programs) | 17 protocol programs in Weft assembly |
-| [`weft/`](weft) | Assembler, cycle accurate model, configuration, line codes, CRC catalogue, analysis and receiver synthesis |
+| [`programs/`](programs) | 17 protocol programs in Linecraft assembly |
+| [`linecraft/`](linecraft) | Assembler, cycle accurate model, configuration, line codes, CRC catalogue, analysis and receiver synthesis |
 | [`test/`](test) | cocotb tests, the SPI host driver and the peer models |
 | [`formal/`](formal) | The formal proof script |
 | [`experiments/`](experiments) | The clock tolerance sweep and the USB waveform |
