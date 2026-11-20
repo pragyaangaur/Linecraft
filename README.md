@@ -1,80 +1,119 @@
-# Weft
+<h1 align="center">Weft</h1>
 
-A small chip that learns new wire protocols from software, built for the Jane Street protocol emulator ASIC competition.
+<p align="center">
+A small chip that learns new wire protocols from software and can prove things about them before it runs them.<br>
+An entry for the Jane Street protocol emulator ASIC competition, on the Tiny Tapeout IHP 130 nm shuttle.
+</p>
 
-Weft is a protocol emulator for the Tiny Tapeout IHP 130 nm shuttle in an 8x4 tile slot. It has four small processors called shuttles that move bits between pins and FIFOs with exact cycle timing, in the spirit of the RP2040 PIO. Each shuttle also carries two pieces of hardware that a host can reprogram: a line coder, which is a finite state transducer stored as a table, and a CRC unit with any width and polynomial up to 32 bits. The toolchain can prove things about a line coder table before it is loaded, including how much clock error a receiver built on it will survive. A cycle accurate experiment confirms that prediction to within half a percent.
+<p align="center">
+<img alt="17 protocol programs" src="https://img.shields.io/badge/protocols-17%20programs-2f6db5">
+<img alt="Tiny Tapeout IHP 130 nm" src="https://img.shields.io/badge/Tiny%20Tapeout-IHP%20130%20nm%2C%208x4%20tiles-555">
+<img alt="Verilog and Python" src="https://img.shields.io/badge/built%20with-Verilog%20%2B%20Python-c2571a">
+<img alt="Apache 2.0 licence" src="https://img.shields.io/badge/licence-Apache%202.0-lightgrey">
+</p>
 
-## At a glance
+![Six protocols as real pin waveforms from the cycle accurate model of Weft](docs/img/hero.png)
 
-| What | Where |
-| --- | --- |
-| 17 protocol programs, each checked against an independent peer model: UART (with parity and at 115200 baud), SPI controller in four modes, SPI target, I2C controller write and read, I2C target, USB low speed transmit and receive, CAN 2.0A, JTAG, PS/2, 1-Wire, WS2812, biphase mark, and four protocols at once | [Protocols](#protocols) |
-| A line coder that runs any 16 state line code from a table, with exact analysis of the table and receiver synthesis from the transmit rule | [Line codes as data](#line-codes-as-data), [Receivers from transmitters](#receivers-from-transmitters) |
-| A bound on the clock error a resynchronising receiver survives, confirmed to within 0.4 percent at six sync phases | [Clock error](#how-much-clock-error-can-a-receiver-survive) |
-| RTL and an independently written Python model held equal on every pin and register in random lockstep runs, with coverage and concurrent host traffic | [Verification](#verification) |
-| Formal proofs of divider zero drift and shuttle invariants, with a check that the proofs are not vacuous | [Verification](#verification) |
-| The arguments behind the mathematics | [docs/theory.md](docs/theory.md) |
+Every gadget talks to other chips over a few wires. A sensor uses I2C, a flash chip uses SPI, a keyboard uses USB and a car uses CAN. Each of these is a protocol, which is a set of rules about when a wire goes high or low and what the pattern means. A normal chip has fixed hardware for each protocol it knows, and it is stuck when it meets one it does not know.
 
-## The idea
+[Jane Street's competition](https://blog.janestreet.com/protocol-emulator-asic-competition/) asks for one small chip that can learn any protocol from software. Weft is my entry. You send it a short program over SPI, and it starts to speak that protocol on its pins. The picture above shows six of them, and every trace in it is a real pin waveform from the cycle accurate model of the chip.
 
-Most serial protocols are built from three layers.
+Programmable protocol engines already exist. The RP2040's PIO is the best known one, and several entries in this competition build something similar. Weft adds one idea on top. Most protocols reshape their bits with a small rule called a line code before the bits reach the wire, and in Weft that rule is a table in hardware. A table is a finite state machine, so the toolchain can reason about a line code before the chip ever runs it.
 
-- The bottom layer is timing. A bit lasts so many clock cycles, and a clock line toggles at fixed points.
-- The middle layer is a line code. NRZI, Manchester and bit stuffing all turn data bits into line symbols with a small amount of memory, so each one is a finite state machine.
-- The top layer is an error check. A CRC is a linear map over GF(2), so one LFSR with a programmable polynomial covers all of them.
+- It **proves** that the receiver always gives back exactly what the transmitter sent.
+- It **predicts** how much clock error between two chips the link survives. I measured the prediction in simulation, and it holds at every setting I tried, to within 0.4 percent.
+- It **builds the receiver for you** from the transmit rule alone. For every built-in code the derived receiver is the same size as the one I wrote by hand.
 
-Weft gives each layer its own programmable hardware. The shuttle program and its fractional clock divider handle timing. The line coder handles the line code. The CRC unit handles the check. A new protocol is then a short program plus a table and a polynomial, which the host loads over SPI.
+## Contents
 
-## Architecture
+- [What is inside the chip](#what-is-inside-the-chip)
+- [A protocol in twelve lines](#a-protocol-in-twelve-lines)
+- [Line codes as tables](#line-codes-as-tables)
+- [How much clock error can a receiver survive?](#how-much-clock-error-can-a-receiver-survive)
+- [Receivers from transmitters](#receivers-from-transmitters)
+- [Two small tricks with the CRC unit](#two-small-tricks-with-the-crc-unit)
+- [The protocols](#the-protocols)
+- [How it is verified](#how-it-is-verified)
+- [Fitting it on the chip](#fitting-it-on-the-chip)
+- [Try it](#try-it)
+- [What is in this repository](#what-is-in-this-repository)
+
+## What is inside the chip
 
 ![Weft architecture](docs/img/architecture.svg)
 
-| Part | What it is |
+Weft has four small processors that I call shuttles, after the part of a loom that carries the thread. They share one memory of 64 instructions. Each shuttle moves bits between its pins and its FIFOs with exact cycle timing, and each has three pieces of hardware that the host can reprogram.
+
+| Part | What it does |
 | --- | --- |
-| Shuttles | Four engines, each with X and Y registers, 32 bit input and output shift registers, a 5 bit delay field on every instruction, up to 3 side-set pins, wrap registers for free loops, and 4 byte TX and RX FIFOs |
-| Instruction memory | 64 instructions of 24 bits, shared by all shuttles |
-| Clock divider | 16 bit integer and 8 bit fraction per shuttle. An optional resync restarts the divider on every edge of a chosen pin, which works as a digital clock recovery loop |
-| Line coder | 16 states, 32 entries of 7 bits per shuttle. Each transmit step sends exactly one line symbol and uses zero or one data bit. Each receive step reads exactly one symbol and produces zero or one data bit. An optional differential output drives a pin pair such as USB D- and D+ |
-| CRC unit | Galois LFSR per shuttle, width 1 to 32, any polynomial, initial value and final XOR of all zeros or all ones, fed with the bits that pass through IN or OUT. `MOV OSR, CRC` loads the result ready to send, and `JMP CRCOK` checks a received frame |
-| Pins | 16 input bits and 16 output bits. Pins 8 to 15 are bidirectional and can be open drain. The highest numbered shuttle that enables a pin drives it |
-| Host port | SPI target on four pins with a 15 bit address space for programs, configuration, line coder tables and FIFOs |
+| Clock divider | Sets the tick rate with 16 integer bits and 8 fraction bits, so 115,200 baud from a 40 MHz clock is within 0.01 percent, and a proof shows the error never builds up over time. It can also restart on every edge of an input pin, which turns it into a simple clock recovery loop |
+| Line coder | A 16 state table that turns data bits into line symbols on transmit and back on receive. NRZI, Manchester, USB bit stuffing, CAN bit stuffing and HDLC zero insertion are all just different tables |
+| CRC unit | A shift register with any width from 1 to 32 bits and any polynomial, fed by the bits that pass through the shuttle. It checks frames on receive and appends the CRC on transmit |
 
-The instruction set has ten opcodes: `JMP` (16 conditions), `WAIT`, `IN`, `OUT`, `PUSH`, `PULL`, `MOV`, `SET`, `IRQ` and `CTL`. The full definition, with every corner case and the register map, is in [docs/spec.md](docs/spec.md).
+The instruction set has ten opcodes: `JMP` with 16 conditions, `WAIT`, `IN`, `OUT`, `PUSH`, `PULL`, `MOV`, `SET`, `IRQ` and `CTL`. Every instruction can also hold its pins for up to 31 extra cycles and drive up to three side pins. The host talks to the chip over SPI on four pins, and pins 8 to 15 are bidirectional, with open drain for buses such as I2C. [docs/spec.md](docs/spec.md) is the full definition, with the register map and every corner case.
 
-## Line codes as data
+## A protocol in twelve lines
 
-A line coder table entry holds a next state, an output bit, a transfer bit and a flag bit. The transfer bit is the important part. On transmit it says whether the step used a data bit, and on receive it says whether the step produced one. That single rule lets one table format express codes that change the number of symbols per bit.
+This is the whole UART transmitter. The shuttle waits for a byte, sends a start bit, shifts out eight data bits and sends a stop bit, and every bit lasts exactly eight ticks.
 
-- NRZI needs 2 states.
-- Manchester needs 3 states, because one data bit becomes two symbols.
-- USB needs 14 states for bit stuffing and NRZI together. After six 1s the transmitter emits a stuffed bit without using any data, and the receiver drops it.
-- CAN stuffing needs 11 states.
-- HDLC zero insertion needs 6 states.
+```
+.program uart_tx
+    set pins, 1              ; idle high before taking the pin
+    set pindirs, 1
+.wrap_target
+    pull block
+    set x, 7
+    set pins, 0      [7]     ; start bit
+bit:
+    out pins, 1      [6]
+    jmp x-- bit
+    set pins, 1      [7]     ; stop bit
+.wrap
+```
 
-Since a table is a finite automaton, the toolchain can analyse it exactly before it goes on the chip. `python -m weft.analysis` prints the following for every built-in code.
+The assembler in [weft/asm.py](weft/asm.py) turns this into 24 bit words, and [weft/protocols.py](weft/protocols.py) adds the configuration for each protocol. A USB or CAN transmitter is not much longer, because the line coder does the stuffing and the CRC unit makes the check bits.
 
-| Code | States | Round trip | Longest run R | Max running sum | Symbols per bit | Tolerance, 1 tick per bit, M = 16 | Tolerance, 2 ticks per bit, M = 33.3 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| NRZI | 2 | proved | unbounded | unbounded | 1 | none | none |
-| USB | 14 | proved | 7 | unbounded | 1 to 7/6 | 6.25% | 3.14% |
-| CAN | 11 | proved | 5 | unbounded | 1 to 5/4 | 8.75% | 4.40% |
-| Manchester | 3 | proved, latency 1 | 2 | 2 | 2 | 21.9% | 11.0% |
-| HDLC | 6 | proved | unbounded | unbounded | 1 to 6/5 | none | none |
+## Line codes as tables
 
-The analyses are graph algorithms on the encoder's configuration graph.
+![The same data bits through three line code tables](docs/img/linecodes.png)
 
-- The round trip proof explores the product of the encoder and the decoder over every input bit string and shows that decoding always returns the input with bounded latency and no error flags.
-- The longest run R of identical line symbols is a longest path in the subgraph of steps that repeat the previous symbol. A cycle in that subgraph means R is unbounded.
-- The running digital sum bound uses Bellman-Ford on symbols weighted plus or minus one.
-- The symbol rate bounds are Karp's minimum and maximum mean cycle on the ratio of symbols to data bits.
+A line code turns data bits into the symbols that go on the wire. NRZI marks a 0 with a change of level. Manchester sends two symbols for every bit, so the line never stays still for long. USB inserts an extra symbol after six 1s in a row, so the receiver always sees a change often enough to keep its clock in step. That inserted bit is the shaded one in the picture.
 
-The CAN row shows why the exact analysis is useful. The worst case rate is 5/4, which is higher than the 6/5 that a quick reading of the rule suggests, because a stuffed bit can start a new run of five.
+Each entry in a Weft table holds the next state, the output symbol and one extra bit that says whether this step used a data bit. That one bit lets a single table format describe codes that send more symbols than they receive bits. NRZI needs 2 states, Manchester 3, HDLC 6, CAN 11 and USB 14.
+
+Since a table is a finite automaton, the toolchain can analyse it exactly. `python -m weft.analysis` does this for every built-in code.
+
+| Code | States | Round trip | Longest run R | Symbols per bit |
+| --- | --- | --- | --- | --- |
+| NRZI | 2 | proved | unbounded | 1 |
+| USB | 14 | proved | 7 | 1 to 7/6 |
+| CAN | 11 | proved | 5 | 1 to 5/4 |
+| Manchester | 3 | proved | 2 | 2 |
+| HDLC | 6 | proved | unbounded | 1 to 6/5 |
+
+The round trip proof explores every pair of encoder and decoder states over every input. The longest run R of equal symbols is a longest path search, and the symbol rate is Karp's minimum and maximum mean cycle. The CAN row shows why exact analysis helps. Its worst case rate is 5/4, which is higher than the 6/5 a quick reading of the rule suggests, because a stuffed bit can start a new run of five.
+
+## How much clock error can a receiver survive?
+
+Two chips never run at exactly the same speed, so a receiver slowly drifts against the line. A receiver that resyncs on every edge only drifts while the line stays still, and the table says how long that can be. With R symbols at most between edges, k ticks per bit, a sample point s within the bit and q cycles of jitter from the synchroniser, a receiver with M clock cycles per symbol works for every clock error d with
+
+```
+-(1/k - s - q/M) / R  <  d  <  (s - q/M) / R
+```
+
+R comes from the table, k from the program, M from the divider, and s from the `SYNC_PHASE` register. To test it, [experiments/cdr_sweep.py](experiments/cdr_sweep.py) sends USB packets full of long runs from one shuttle to a receiver on another, and detunes the transmitter in steps of 0.1 percent until packets fail.
+
+![Predicted and measured clock tolerance for a USB receiver](docs/img/tolerance.png)
+
+At all six sync phases the measured window sits just outside the predicted one, between 0.20 and 0.37 percent wider on each side. The bound is therefore safe, and it is close to tight. At the middle setting the receiver survives about 3 percent either way, which is twice what the USB specification asks of a low speed device.
+
+My first version of this bound was symmetric, and the experiment broke it on one side. Following that failure up showed that the sample point after an edge depends on the synchroniser delay as well as on `SYNC_PHASE`, and that gave the asymmetric form above. [docs/theory.md](docs/theory.md) has the full argument.
 
 ## Receivers from transmitters
 
-Writing a decoder table by hand is where line code bugs live, so the toolchain derives it. `weft.synth` takes only the transmit table. The receiver's state is the set of transmitter configurations that agree with every symbol seen so far, which is the subset construction from automata theory. On each symbol the receiver emits a bit only if every surviving transmitter step used that same bit. It emits nothing if none of them used a bit, and it raises the error flag if no transmitter could have sent the symbol. Partition refinement then merges equivalent states, and the round trip checker proves the result.
+Writing a decoder table by hand is where line code bugs live, so the toolchain derives it. [weft/synth.py](weft/synth.py) takes only the transmit table. The receiver keeps track of the set of transmitter states that could have produced the symbols seen so far, which is the subset construction from automata theory. On each symbol it outputs a bit only when every possible transmitter step used that same bit, and it raises an error flag when no transmitter could have sent the symbol. Moore minimisation then merges equal states, and the round trip checker proves the result.
 
-| Code | Hand-written receiver | Synthesised receiver | Round trip |
+| Code | Hand-written receiver | Derived receiver | Round trip |
 | --- | --- | --- | --- |
 | NRZI | 2 states | 2 states | proved |
 | USB | 14 states | 14 states | proved |
@@ -82,119 +121,104 @@ Writing a decoder table by hand is where line code bugs live, so the toolchain d
 | Manchester | 3 states | 3 states | proved |
 | HDLC | 6 states | 6 states | proved |
 
-The synthesised USB receiver is also tested on the chip, where it receives a looped back packet and passes the CRC check. When a code cannot be decoded one symbol at a time, synthesis says so instead of producing a wrong table. A test covers a code that sends each bit only after a symbol has already committed to it.
+The best test of flexibility is a protocol the chip was not designed for. Biphase mark code, the line code of S/PDIF digital audio, appears nowhere in the design. I wrote its transmit rule in six lines of Python inside a test. The toolchain derived a 4 state receiver, proved the pair, found R = 2, and the chip sent and received four bytes through a loopback with two generic programs. [docs/new_protocol.md](docs/new_protocol.md) walks through the same steps for any new code.
 
-## How much clock error can a receiver survive?
+## Two small tricks with the CRC unit
 
-A receiver that resyncs on every edge only drifts while the line holds still, and the line coder bounds how long that is. If a shuttle ticks k times per bit and samples on one of those ticks, then after an edge its tick positions sit at s, s + 1/k, and so on. After a resync the program can land on any of them, so the earliest and latest positions are the ones that matter. With R symbols at most between edges, M clock cycles per symbol and q cycles of uncertainty from the synchronizer and the fractional divider, the receiver works for every clock offset d with
+- **Parity for free.** A 1 bit CRC with polynomial 1 is the parity of the bits fed into it. The UART 8O1 and 8E1 transmitters and the PS/2 receiver use the CRC unit this way, so the chip has no parity hardware.
+- **Address matching for free.** A CRC of width W is a one to one map on W bit messages, so two different 8 bit addresses can never give the same CRC-8. The I2C target loads the CRC of its own address as the check value, and one `JMP CRCOK` after the address byte tells it whether the controller is talking to it.
 
-```
--(1/k - s - q/M) / R  <  d  <  (s - q/M) / R
-```
+## The protocols
 
-and the best choice s = 1/(2k) gives |d| < (1/(2k) - q/M) / R. R comes from the line coder table, k from the program, M from the divider, and s from the `SYNC_PHASE` register.
+Every program is in [programs/](programs), and every test drives the chip only through its pins and its SPI port. Each protocol is checked by a peer model written separately from the Weft toolchain.
 
-[experiments/cdr_sweep.py](experiments/cdr_sweep.py) tests the bound. A USB low speed transmitter on shuttle 0 sends packets that force the longest runs to a receiver on shuttle 1 over the same pins, and the transmitter's divider is detuned in 0.1% steps until packets fail. This runs in the cycle accurate model, which the lockstep tests hold equal to the RTL.
-
-![Predicted and measured clock tolerance](docs/img/cdr_sweep.svg)
-
-| Sync phase P | Predicted range | Measured range |
+| Protocol | Program | Checked by |
 | --- | --- | --- |
-| 1 | -5.86% to +0.43% | -6.10% to +0.80% |
-| 3 | -5.00% to +1.29% | -5.20% to +1.60% |
-| 5 | -4.14% to +2.14% | -4.40% to +2.40% |
-| 7 | -3.29% to +3.00% | -3.60% to +3.30% |
-| 9 | -2.43% to +3.86% | -2.70% to +4.10% |
-| 11 | -1.57% to +4.71% | -1.90% to +5.00% |
+| UART 8N1 transmit and receive | `uart_tx`, `uart_rx` | A mid-bit sampling decoder, edge timing at 115,200 baud, and a bad stop bit that must raise an interrupt |
+| UART with odd or even parity | `uart_tx_parity` | A frame decoder that checks the parity bit from the 1 bit CRC |
+| SPI controller, all four modes | `spi_master` | An SPI target model for each clock polarity and phase |
+| SPI target | `spi_target` | An SPI controller model that clocks the chip from its input pins |
+| I2C controller write and read | `i2c_write`, `i2c_read` | An open drain target model that checks START, address, ACK, NACK and STOP |
+| I2C target | `i2c_target` | A controller model that writes to the chip's address and to another one. The chip answers only its own |
+| 1-Wire READ ROM | `onewire` | A device model from the Maxim timing rules. The chip checks the ROM's CRC-8 |
+| PS/2 receive | `ps2_rx` | A keyboard model that clocks frames in, with a bad parity bit that must be caught |
+| JTAG | `jtag` | A TAP model from IEEE 1149.1 that follows all 16 states. The test reads a 32 bit IDCODE |
+| USB low speed transmit | `usb_ls_tx` | A decoder from the USB specification that undoes NRZI and stuffing and checks the CRC16 |
+| USB low speed receive | `usb_ls_rx` | Loopback with clock recovery, destuffing and a CRC16 check on the chip |
+| CAN 2.0A transmit | `can_tx` | A decoder from ISO 11898 that checks stuff bits, CRC-15 and the frame end |
+| Biphase mark (S/PDIF) | `bmc_tx`, `bmc_rx` | A derived receiver and a loopback, described above |
+| WS2812 LEDs | `ws2812` | A pulse width decoder that checks every high time |
+| Four at once | four of the above | UART, SPI, I2C and WS2812 run together on the four shuttles from one memory |
 
-For all six sync phases the window moves with P as predicted, and each measured edge sits between 0.20% and 0.37% outside the predicted one. The bound is therefore safe and close to tight. At P = 7 the receiver tolerates about 3% either way, which is twice the 1.5% that the USB specification allows a low speed device.
+![One USB low speed packet from the cycle accurate model, with the stuffed bits marked](docs/img/usb_waveform.svg)
 
-[docs/theory.md](docs/theory.md) gives the argument for this bound and its sharper form, together with the arguments for receiver synthesis and for zero drift in the divider. The first version of this experiment used a symmetric bound and a sync phase chosen by eye, and it failed on one side. Following that failure up gave the asymmetric form above. In this design the sample point after an edge comes from the synchronizer latency as much as from `SYNC_PHASE`.
+## How it is verified
 
-## Protocols
+![How the RTL and the model check each other](docs/img/verification.png)
 
-Every program is in [programs/](programs), and every test drives the chip only through its pins and the SPI port.
+I wrote the Verilog in [src/](src) from [docs/spec.md](docs/spec.md). A cycle accurate Python model in [weft/model.py](weft/model.py) was written separately from the same spec, and the tests hold the two against each other and against the protocol peers.
 
-| Protocol | Program | What checks it |
-| --- | --- | --- |
-| UART 8N1 transmit | `uart_tx.weft` | A decoder that samples mid-bit and checks start and stop bits |
-| UART 8O1 and 8E1 transmit | `uart_tx_parity.weft` | A frame decoder that checks the parity bit, which the CRC unit makes as a 1 bit CRC with polynomial 1 |
-| UART 8N1 receive | `uart_rx.weft` | Frames driven on a pin, including a bad stop bit that must raise IRQ 0 |
-| SPI controller, modes 0 to 3 | `spi_master.weft` | An SPI target model for each CPOL and CPHA that checks MOSI and replies on MISO, with CS held across bytes |
-| SPI target, mode 0 | `spi_target.weft` | An SPI controller model clocks the chip from its input pins at clk / 16 and checks MISO and the received bytes |
-| I2C controller write | `i2c_write.weft` | An open drain I2C target model that checks START, address, data and STOP and ACKs or NACKs |
-| I2C controller read | `i2c_read.weft` | The same target model sends bytes and records the controller's ACK on every byte but the last and the NACK on the last |
-| I2C target (peripheral) | `i2c_target.weft` | A controller model on the open drain bus writes to the chip's address and to another one. The chip ACKs only its own address, pushes the data and recognises STOP. The address is matched by the CRC unit, because a CRC of width 8 is a bijection on 8 bit messages |
-| 1-Wire READ ROM | `onewire.weft` | A device model from the Maxim timing rules answers reset with a presence pulse and sends its 64 bit ROM. The chip checks the ROM's Maxim CRC-8 with its CRC unit, and a corrupted CRC raises IRQ 1 instead of IRQ 0 |
-| PS/2 receive (host side) | `ps2_rx.weft` | A device model clocks frames in. Odd parity is checked with the same 1 bit CRC, now on the receive side, and a bad parity bit raises IRQ 0 |
-| JTAG | `jtag.weft` | A TAP model written from IEEE 1149.1 that follows TMS through all 16 states. The test resets the TAP, moves to Shift-DR and reads a 32 bit IDCODE |
-| USB low speed transmit | `usb_ls_tx.weft` | A decoder written from the USB specification that undoes NRZI and stuffing and checks the CRC16 |
-| USB low speed receive | `usb_ls_rx.weft` | Loopback from the transmitter, with clock recovery, destuffing and a CRC16 residue check on the chip |
-| CAN 2.0A transmit | `can_tx.weft` | A decoder written from ISO 11898 that checks stuff bits, CRC-15, delimiters and EOF |
-| Biphase mark code (S/PDIF and AES3 line code), loopback | `bmc_tx.weft`, `bmc_rx.weft` | The code exists only as a 4 state transmit rule written inside the test. The receiver is synthesised, the round trip is proved, and the chip sends and receives four bytes through the loopback |
-| WS2812 LED data | `ws2812.weft` | A pulse width decoder that checks each high time against the 2 and 7 tick targets |
-| Four at once | `uart_tx`, `spi_master`, `i2c_write`, `ws2812` | All four run together on the four shuttles from one instruction memory, each checked by its own peer model |
+- **Lockstep random testing** ([test/test_lockstep.py](test/test_lockstep.py)). Each trial loads a random 64 instruction program and random settings for all four shuttles into both the RTL and the model, then drives random pin inputs while a host pushes and pops FIFO bytes over SPI. On every clock cycle it compares every output pin, the interrupt flags and fifteen registers of every shuttle. Two campaigns of 200 trials of 1000 cycles each found no differences. Functional coverage shows that every opcode runs, every opcode that can stall does stall, and every jump condition is seen both taken and not taken ([docs/lockstep_coverage.txt](docs/lockstep_coverage.txt)).
+- **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against the peer models in [test/peers.py](test/peers.py), which share no code with the toolchain.
+- **Toolchain tests** in [weft/tests](weft/tests), 173 of them. They cover the assembler, every CRC in the catalogue sent bit for bit on the wire (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8 and others), the line code analyses and receiver synthesis.
+- **Gate level simulation** ([scripts/postsynth_sim.sh](scripts/postsynth_sim.sh)). The RTL is synthesised to gates and all 27 pin level tests run again on the netlist.
+- **Formal proofs** ([formal/run.sh](formal/run.sh)), which hold on every cycle of every run.
+  - The fractional divider has zero long term drift. Tick k always falls at exactly floor(k(N + F/256)) cycles, proved by k-induction for every divider setting.
+  - A whole shuttle keeps its invariants for every program and every input. FIFOs never overflow or underflow, shift counters stay in range, and a stopped shuttle keeps its state.
+  - A planted false assertion is found by the same setup, which shows the proofs are not empty.
 
-The biphase mark row is the flexibility test in miniature. Weft was not designed with that code in mind, and adding it took a transmit rule of six lines ([docs/new_protocol.md](docs/new_protocol.md) walks through it). The toolchain derived the receiver, proved the pair correct, found R = 2, and the two generic programs ran it on the chip.
+The tests found real bugs, and each one is fixed. The lockstep run found a gap in the spec, because the RTL and the model read a count field above 32 in different ways. The JTAG test found that reading an empty receive FIFO returned stale data. The hardening flow found loop variables that synthesis turned into latches, and the gate level run found two places where the testbench left inputs undriven.
 
-![A USB low speed packet from the cycle accurate model](docs/img/usb_waveform.svg)
+## Fitting it on the chip
 
-The USB and CAN transmitters use the same two blocks with a different table and polynomial. Both keep a fixed number of ticks per symbol right up to the last stuffed bit by testing the `MORE` jump condition, which is true while an `OUT` would find data in the OSR, in the FIFO or pending in the line coder.
+Weft targets an 8x4 tile slot on the Tiny Tapeout IHP 130 nm shuttle, which gives about 1.2 mm² for the core. Fitting four shuttles took some work, and the history is honest about it.
 
-## Verification
+| Attempt | Result |
+| --- | --- |
+| Default synthesis, tuned for speed | Too big. Buffers took a third of the area, and placement needed 103 percent of the core |
+| Synthesis tuned for area, flattened | The optimiser ran for hours in CI without finishing |
+| Synthesis tuned for area, keeping each shuttle as its own block until the end | Synthesis takes 30 seconds, and the design fits at 55 percent of the core |
+| The same at 50 MHz | 705 timing failures, worst by 4.6 ns |
+| The same at 40 MHz | No setup failures. This is the current target |
 
-Two separate implementations were written from [docs/spec.md](docs/spec.md): the Verilog in [src/](src) and a cycle accurate Python model in [weft/model.py](weft/model.py). The tests check them against each other and against the protocols.
+The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. Registering the fetched instruction is the next step toward 50 MHz. At 40 MHz every protocol in the table still runs at its usual speed.
 
-- **Lockstep random testing** ([test/test_lockstep.py](test/test_lockstep.py)). Each trial builds a random 64 instruction program and random configurations, line coder tables, CRC settings and FIFO contents for all four shuttles. It loads them into the RTL through the SPI port and into the model through its register interface, then drives random pin inputs while a background host pushes and pops FIFO bytes through the SPI port. Each host push or pop is copied into the model at the same clock edge, and every byte the host reads must equal the byte the model popped. On every clock cycle it compares every output pin, the IRQ flags and fifteen architectural registers of every shuttle. This found one real gap in the spec: the meaning of a count field above 32, which the RTL and the model read differently. The spec now defines it. Two campaigns of 200 trials of 1000 cycles each found no differences, the second with the host traffic running. The test also records functional coverage from the RTL, and in a 60 trial run every opcode runs, every opcode that can stall stalls, and every jump condition is seen both taken and not taken ([docs/lockstep_coverage.txt](docs/lockstep_coverage.txt)).
-- **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against peer models and decoders in [test/peers.py](test/peers.py) that share no code with the Weft toolchain. They found one RTL bug that the lockstep test could not see, because it never reads an empty FIFO: a host read of an empty RX FIFO returned the stale slot instead of 0.
-- **Model and toolchain tests** ([weft/tests](weft/tests)), 173 of them. They cover the assembler round trip, every catalogue CRC (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8, CRC-7, CRC-16/CCITT) sent bit-exact on the wire through `MOV OSR, CRC`, and the line code analyses.
-- **Post-synthesis simulation** ([scripts/postsynth_sim.sh](scripts/postsynth_sim.sh)). The RTL is synthesised to generic gates and all 27 pin level tests run again on the netlist, and all of them pass. This found two testbench gaps that RTL simulation hides: inputs left undriven during reset, and a host driver that read every output pin instead of only MISO.
-- **Formal proofs** ([formal/run.sh](formal/run.sh)), which hold on every cycle of every run and take a few seconds.
-  - The fractional divider has zero cumulative drift. With the configuration held, 256 times the elapsed cycles plus the accumulator always equals the sum of 256N + DIV_FRAC over the ticks so far, so tick k falls exactly at floor(k(N + DIV_FRAC/256)) cycles. This is proved by k-induction with z3 for every DIV_INT and DIV_FRAC.
-  - A whole shuttle keeps its invariants for every program, configuration and input: the FIFOs never overflow or underflow and their pointers match their counts, the shift counters stay within 32, at most 8 CRC bits wait, an instruction only runs on a tick with no delay left, and a disabled shuttle that is not restarted keeps its program state. These are proved by temporal induction with Yosys.
-  - A planted false assertion (a TX FIFO can never be full) must be found by the same setup, and it is found at depth 5. This shows the proofs are not vacuous.
+## Try it
 
-## Hardening
-
-The design targets an 8x4 tile slot on the IHP CMOS5L shuttle through the Tiny Tapeout flow (`.github/workflows/gds.yaml`, run by hand). Two settings in `src/config.json` matter.
-
-- `SYNTH_STRATEGY` is `AREA 0`. The default `DELAY 4` strategy inserted so many buffers that the cells needed 103 percent of the core.
-- `SYNTH_HIERARCHY_MODE` is `deferred_flatten`. Flattened `AREA 0` synthesis ran for hours in CI, but with the hierarchy kept ABC optimises one shuttle instead of four copies, and synthesis takes about 30 seconds. The four shuttle design then floorplans at 55 percent utilization.
-
-The clock target is 40 MHz (25 ns). At 50 MHz the hardened design had 705 setup violations with a worst slack of -4.6 ns, and at 25 ns it has none before routing. The longest paths run from the program counter through the instruction memory mux, decode and the IN or OUT data path in one cycle, so a registered instruction fetch is the natural next step toward 50 MHz.
-
-A clean GDS run through routing and precheck is not confirmed yet. The latest run gets through synthesis, floorplan, placement and clock tree synthesis, and its timing repair at 25 ns ends with positive setup slack.
-
-## Building and testing
+You need Python 3.10 or later, [Icarus Verilog](https://steveicarus.github.io/iverilog/) for the simulation tests, and Yosys with z3 for the proofs.
 
 ```bash
-pip install cocotb pytest
+pip install cocotb pytest matplotlib
 python -m pytest weft -q
-cd test && make
 python -m weft.asm programs/usb_ls_tx.weft
 python -m weft.analysis
 python experiments/cdr_sweep.py --plot sweep.svg
+python docs/make_figures.py
+cd test && make
 ```
 
-`scripts/check_all.sh` runs all of it, including the formal proofs, and works from a path with spaces. The cocotb tests need Icarus Verilog, and the proofs need Yosys and z3. `LOCKSTEP_TRIALS`, `LOCKSTEP_CYCLES` and `LOCKSTEP_SEED` control the random lockstep run. Make does not handle a project path that contains spaces, so run it from a path without them.
+`scripts/check_all.sh` runs everything, including the proofs. Make cannot handle a project path that contains spaces, so run the cocotb tests from a path without them.
 
-## Using the chip
-
-[weft/protocols.py](weft/protocols.py) has one function per protocol that returns the host writes for a shuttle, its pins, its rate and its program origin. `python -m weft.export` saves them as JSON, and [host/weft_rp2350.py](host/weft_rp2350.py) is a MicroPython driver for the demo board's RP2350 that replays them over SPI and moves data through the FIFOs. The driver has not been run on hardware yet.
+To use a real chip, `python -m weft.export` saves any protocol's setup as JSON, and [host/weft_rp2350.py](host/weft_rp2350.py) is a MicroPython driver for the RP2350 on the Tiny Tapeout demo board that loads it over SPI. The driver has not run on hardware yet.
 
 ```bash
-python -m weft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=50e6 > uart.json
+python -m weft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=40e6 > uart.json
 ```
 
-## Repository layout
+## What is in this repository
 
 | Path | Contents |
 | --- | --- |
-| `src/` | Verilog: `project.v` (top level), `weft_shuttle.v`, `weft_divider.v`, `weft_host.v` |
-| `docs/spec.md` | The architecture, instruction set and register map |
-| `programs/` | Protocol programs in Weft assembly |
-| `weft/` | Assembler, cycle accurate model, configuration helper, line codes, CRC catalogue, analysis and receiver synthesis |
-| `test/` | cocotb tests, host SPI driver and peer models |
-| `experiments/` | The clock tolerance sweep |
-| `host/` | MicroPython driver for the RP2350 on the demo board |
-| `formal/` | Formal proof script |
+| [`src/`](src) | Verilog: the top level, the shuttle, the divider and the SPI host port |
+| [`docs/spec.md`](docs/spec.md) | The architecture, instruction set and register map |
+| [`docs/theory.md`](docs/theory.md) | The arguments behind the clock bound, receiver synthesis and the divider proof |
+| [`docs/new_protocol.md`](docs/new_protocol.md) | How to add a protocol the chip was not designed for |
+| [`programs/`](programs) | 17 protocol programs in Weft assembly |
+| [`weft/`](weft) | Assembler, cycle accurate model, configuration, line codes, CRC catalogue, analysis and receiver synthesis |
+| [`test/`](test) | cocotb tests, the SPI host driver and the peer models |
+| [`formal/`](formal) | The formal proof script |
+| [`experiments/`](experiments) | The clock tolerance sweep and the USB waveform |
+| [`host/`](host) | MicroPython driver for the demo board |
+| [`docs/make_figures.py`](docs/make_figures.py) | The script that draws the figures in this README from the model |
+
+The design and the code are under the Apache 2.0 licence.

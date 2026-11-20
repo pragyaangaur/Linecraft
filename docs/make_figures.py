@@ -252,7 +252,7 @@ def verification_figure():
     box(ax, 0.48, 0.38, 0.22, 0.24, "Lockstep\nrandom programs, host traffic;\nevery pin and register\nequal on every cycle", "#e3f1e3", size=9)
     arrow(ax, 0.335, 0.70, 0.52, 0.62)
     arrow(ax, 0.335, 0.30, 0.52, 0.38)
-    checks = [("Protocol peers\n18 protocols, own code", 0.75), ("Formal proofs\ndivider, shuttle invariants", 0.53),
+    checks = [("Protocol peers\nseparate code for each protocol", 0.75), ("Formal proofs\ndivider, shuttle invariants", 0.53),
               ("Gate netlist\n27 pin tests again", 0.31), ("Python tests\n173 for the toolchain", 0.07)]
     for text, y in checks:
         box(ax, 0.79, y, 0.19, 0.17, text, "#eef0f3", size=8.8)
