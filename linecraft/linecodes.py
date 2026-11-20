@@ -69,6 +69,49 @@ class LineCode:
     rx_init: int
 
 
+# ----- composing transmit tables -----
+
+def compose(first, first_init, second, second_init):
+    """Chain two transmit tables: the symbols of `first` become the input bits of `second`.
+
+    `second` must use its input on every step (a one to one code such as NRZI). The result runs both machines in one table, with state (state of first, state of second), and keeps only the pairs reachable from the start. It returns (table, init) and raises ValueError if more than 16 pairs are reachable.
+    """
+    for entry in second:
+        if entry and not unpack_entry(entry)[2]:
+            raise ValueError("the second table must use one input bit on every step")
+    start = (first_init, second_init)
+    index, order, rows = {start: 0}, [start], []
+    while len(rows) < len(order):
+        s1, s2 = order[len(rows)]
+        row = []
+        for b in (0, 1):
+            n1, o1, x1, f1 = unpack_entry(first[2 * s1 + b])
+            n2, o2, _, f2 = unpack_entry(second[2 * s2 + o1])
+            nxt = (n1, n2)
+            if nxt not in index:
+                index[nxt] = len(order)
+                order.append(nxt)
+            row.append((nxt, o2, x1, f1 | f2))
+        rows.append(row)
+    if len(order) > 16:
+        raise ValueError(f"the composition has {len(order)} reachable states, more than 16")
+    table = [0] * 32
+    for i, row in enumerate(rows):
+        for b, (nxt, out, xfer, flag) in enumerate(row):
+            table[2 * i + b] = pack_entry(index[nxt], out, xfer, flag)
+    return table, 0
+
+
+def usb_stuffing():
+    """USB bit stuffing on its own: after six 1s, insert a 0 without taking a data bit. 7 states."""
+    def step(ones, b):
+        if ones == 6:
+            return Step(0, 0, xfer=False)
+        return Step(ones + 1, 1) if b else Step(0, 0)
+    m = Machine(list(range(7)), step)
+    return m.table(), m.index(0)
+
+
 # ----- software runs of a table, with the hardware's peek semantics -----
 
 def run_tx(table, init, bits, flush=True):

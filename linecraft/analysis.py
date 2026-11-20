@@ -137,6 +137,25 @@ def check_round_trip(tx, tx_init, rx, rx_init, max_latency=64):
 
 # ----- (b) longest run of identical symbols -----
 
+def same_transmitter(a, a_init, b, b_init):
+    """True if two transmit tables send the same symbols and use the same data bits for every input.
+
+    It explores the reachable pairs of states. Both tables are deterministic and read the same input bit on every step, so equal entries on every reachable pair mean equal behaviour on every input string.
+    """
+    seen, todo = {(a_init, b_init)}, [(a_init, b_init)]
+    while todo:
+        p, q = todo.pop()
+        for bit in (0, 1):
+            np_, op, xp, _ = unpack_entry(a[2 * p + bit])
+            nq, oq, xq, _ = unpack_entry(b[2 * q + bit])
+            if (op, xp) != (oq, xq):
+                return False
+            if (np_, nq) not in seen:
+                seen.add((np_, nq))
+                todo.append((np_, nq))
+    return True
+
+
 def max_run_length(table, init):
     """Longest run R of identical consecutive line symbols the encoder can send.
 
