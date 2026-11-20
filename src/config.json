@@ -13,7 +13,7 @@
 
   "//": "PL_TARGET_DENSITY_PCT - You can increase this if Global Placement fails with error GPL-0302.",
   "//": "Users have reported that values up to 80 worked well for them.",
-  "PL_TARGET_DENSITY_PCT": 75,
+  "PL_TARGET_DENSITY_PCT": 60,
 
   "//": "Synthesize for area. The default timing strategy buffered most nets and doubled the cell area.",
   "//": "Keep the hierarchy until synthesis ends, so ABC optimizes one shuttle instead of four flattened copies. Flattened AREA 0 ran for hours in CI.",
