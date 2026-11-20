@@ -186,9 +186,9 @@ Linecraft targets an 8x4 tile slot on the Tiny Tapeout IHP 130 nm shuttle, which
 | Synthesis tuned for area, flattened | The optimiser ran for hours in CI without finishing |
 | Synthesis tuned for area, keeping each shuttle as its own block until the end | Synthesis takes 30 seconds, and the design fits at 55 percent of the core |
 | The same at 50 MHz | 705 timing failures, worst by 4.6 ns |
-| The same at 40 MHz | No setup failures. This is the current target |
+| The same at 40 MHz | No setup failures, and detailed routing finishes with no design rule violations. The run then stopped at the six hour limit of a CI job, during a short final reroute after antenna repair. This is the current target |
 
-The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. Registering the fetched instruction is the next step toward 50 MHz. At 40 MHz every protocol in the table still runs at its usual speed.
+The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. Registering the fetched instruction is the next step toward 50 MHz, and the `fetch-reg` branch does this with every test passing. At 40 MHz every protocol in the table still runs at its usual speed.
 
 ## Try it
 
