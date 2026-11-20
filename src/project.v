@@ -21,7 +21,7 @@ module tt_um_pragyaangaur_weft (
     input  wire       rst_n
 );
 
-    localparam NS = 4;   // number of shuttles
+    localparam NS = 3;   // number of shuttles
 
     // ------------------------------------------------------------------
     // Two flop input synchronizer plus one more flop for edge detection
