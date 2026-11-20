@@ -122,6 +122,14 @@ def can_tx(shuttle, tx_pin, bitrate, clk_hz, origin=0):
     return _done(shuttle, cfg, program("can_tx", origin))
 
 
+def dali_tx(shuttle, tx_pin, clk_hz, origin=0):
+    """DALI forward frames at 1200 bit/s: push two bytes per frame in one burst."""
+    cfg = ShuttleConfig(out_base=tx_pin, set_base=tx_pin, set_count=1, autopull=True, pull_thresh=8)
+    cfg.set_rate(clk_hz, 4 * 1200)
+    cfg.use_line_code(linecodes.manchester(), "tx")
+    return _done(shuttle, cfg, program("dali_tx", origin))
+
+
 def ws2812(shuttle, data_pin, clk_hz, origin=0):
     cfg = ShuttleConfig(side_base=data_pin, set_base=data_pin, set_count=1, autopull=True, pull_thresh=8)
     cfg.set_rate(clk_hz, 8e6)
@@ -129,4 +137,4 @@ def ws2812(shuttle, data_pin, clk_hz, origin=0):
 
 
 PRESETS = {f.__name__: f for f in (uart_tx, uart_tx_parity, uart_rx, spi_master, spi_target, i2c, i2c_target,
-                                    usb_ls_tx, usb_ls_rx, can_tx, ws2812)}
+                                    usb_ls_tx, usb_ls_rx, can_tx, dali_tx, ws2812)}

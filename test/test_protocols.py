@@ -351,6 +351,33 @@ async def test_ws2812(dut):
 
 
 @cocotb.test()
+async def test_dali_manchester(dut):
+    """DALI lighting control frames, Manchester coded by the built-in table, checked edge by edge."""
+    from peers import dali_decode
+    host = await start(dut)
+    cfg = ShuttleConfig(out_base=1, set_base=1, set_count=1, autopull=True, pull_thresh=8)
+    cfg.use_line_code(linecodes.manchester(), "tx")
+    cfg.set_ratio(4)                                    # 2 ticks per half bit, so 8 cycles
+    await load(host, 0, cfg, program("dali_tx"))
+    await host.write(0x001, 0x1)
+
+    async def sample(n):
+        out = []
+        for _ in range(n):
+            await RisingEdge(dut.clk)
+            out.append((int(dut.uo_out.value) >> 1) & 1)
+        return out
+
+    frames = [0xA53C, 0xFF00, 0x0101]
+    cap = cocotb.start_soon(sample(2200))
+    for f in frames:
+        await host.write(0x008, [f >> 8, f & 0xFF])     # one frame per burst
+        await ClockCycles(dut.clk, 400)
+    got = dali_decode(await cap, 8)
+    assert got == frames, [hex(g) for g in got]
+
+
+@cocotb.test()
 async def test_spi_target(dut):
     """The chip as an SPI peripheral, clocked by a controller model on its input pins."""
     host = await start(dut)

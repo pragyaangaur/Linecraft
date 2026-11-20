@@ -361,3 +361,30 @@ class OneWireDevice:
                     else:
                         mode = "idle"
             prev = line
+
+
+def dali_decode(samples, half):
+    """Decode DALI forward frames from per-cycle samples of the line (IEC 62386-101).
+
+    A frame is a start bit, 16 data bits MSB first and two stop bits, in Manchester code where a 1 is low then high. Every edge must fall on a multiple of `half` cycles from the start edge, the middle of every bit must have an edge, and the stop bits must be at idle for four half bits. Returns the 16 bit frames in order.
+    """
+    frames, i, n = [], 0, len(samples)
+    while True:
+        while i < n and samples[i] == 1:
+            i += 1
+        if i + 38 * half > n:
+            return frames
+        start = i
+        for t in range(start, start + 38 * half):
+            if samples[t] != samples[t - 1]:
+                assert (t - start) % half == 0, f"edge at {t - start} cycles is off the half bit grid of {half}"
+        syms = [samples[start + k * half + half // 2] for k in range(38)]
+        assert syms[:2] == [0, 1], f"bad start bit {syms[:2]}"
+        value = 0
+        for k in range(16):
+            pair = tuple(syms[2 + 2 * k:4 + 2 * k])
+            assert pair in ((0, 1), (1, 0)), f"no mid-bit edge in bit {k}"
+            value = (value << 1) | (1 if pair == (0, 1) else 0)
+        assert syms[34:] == [1, 1, 1, 1], f"bad stop bits {syms[34:]}"
+        frames.append(value)
+        i = start + 38 * half

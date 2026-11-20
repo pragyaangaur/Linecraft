@@ -1,0 +1,21 @@
+; DALI forward frame transmitter (IEC 62386 lighting control).
+; DALI sends a start bit, 16 data bits MSB first and two stop bits, all in
+; Manchester code where a 1 is low then high. The built-in manchester table
+; does the coding, so the program only marks the frame ends. One half-bit
+; symbol is 2 ticks. The host pushes the address byte and the command byte
+; together, and the frame ends when the FIFO is empty (the MORE condition).
+; Pins: OUT_BASE = SET_BASE = the line.
+; Config: SET_COUNT = 1, OUT_RIGHT = 0, AUTOPULL = 1 with PULL_THRESH = 8,
+; line coder manchester (tx), FST_INIT = its first state.
+.program dali_tx
+    set pins, 1                     ; idle high
+    set pindirs, 1
+.wrap_target
+    pull block                      ; wait for a frame
+    set pins, 0          [1]        ; start bit, first half
+    set pins, 1          [1]        ; start bit, second half
+bit:
+    out fst, 1                      ; one half-bit symbol from the table
+    jmp more bit
+    set pins, 1          [7]        ; two stop bits at idle
+.wrap
