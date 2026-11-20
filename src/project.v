@@ -115,7 +115,7 @@ module tt_um_pragyaangaur_linecraft (
     // ------------------------------------------------------------------
     // Shuttles
     // ------------------------------------------------------------------
-    wire [5:0]  s_pc   [0:NS-1];
+    wire [5:0]  s_pcn  [0:NS-1];
     wire [15:0] s_pv   [0:NS-1];
     wire [15:0] s_pe   [0:NS-1];
     wire [3:0]  s_tx_full, s_rx_empty;   // padded to four shuttles for the status register
@@ -135,11 +135,20 @@ module tt_um_pragyaangaur_linecraft (
             wire fifo_wr = h_wr && (h_waddr == 15'h008 + g);
             wire fifo_rd = h_rd_commit && (h_rd_addr == 15'h008 + g);
 
+            // Registered fetch. The word for the next pc is read one cycle early,
+            // so the long path from the program counter through the 64 to 1
+            // mux ends at this register instead of running on into the shuttle.
+            // A host write that completes a word at that address is forwarded.
+            reg [23:0] instr_q;
+            always @(posedge clk)
+                instr_q <= (wr_imem && h_waddr[1:0] == 2'd2 && h_waddr[7:2] == s_pcn[g])
+                           ? {h_wdata, istage} : imem[s_pcn[g]];
+
             linecraft_shuttle u (
                 .clk(clk), .rst_n(rst_n),
                 .en(enable[g]), .restart(restart[g]),
                 .pins(pins), .pins_prev(pins_prev),
-                .pc_out(s_pc[g]), .instr(imem[s_pc[g]]),
+                .pc_next(s_pcn[g]), .instr(instr_q),
                 .irq_flags(irq), .irq_set(irq_set_s[g]), .irq_clr(irq_clr_s[g]),
                 .cfg_we(cfg_we), .cfg_addr(h_waddr[5:0]),
                 .fst_we(fst_we), .fst_addr(h_waddr[4:0]),

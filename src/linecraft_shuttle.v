@@ -14,8 +14,8 @@ module linecraft_shuttle (
     input  wire [15:0] pins,        // synchronized pin inputs
     input  wire [15:0] pins_prev,   // pins one cycle earlier
 
-    output wire [5:0]  pc_out,      // instruction fetch address
-    input  wire [23:0] instr,       // imem[pc_out]
+    output wire [5:0]  pc_next,     // the program counter after this clock edge
+    input  wire [23:0] instr,       // imem[pc], fetched one cycle early from pc_next
 
     input  wire [7:0]  irq_flags,
     output reg  [7:0]  irq_set,
@@ -216,7 +216,6 @@ module linecraft_shuttle (
     reg [7:0]  crc_pend_bits;          // bits waiting to enter the CRC, in feed order
     reg [3:0]  crc_pend_n;             // how many of them (0 to 8)
 
-    assign pc_out = pc;
 
     // ------------------------------------------------------------------
     // Divider with edge resync
@@ -439,6 +438,8 @@ module linecraft_shuttle (
     // Next state
     // ------------------------------------------------------------------
     reg [5:0]  pc_n;
+    // The value pc takes at the next edge, so the top level can register the fetch.
+    assign pc_next = (!rst_n || restart) ? start_pc : pc_n;
     reg [15:0] x_n, y_n, pv_n, pe_n;
     reg [31:0] osr_n, isr_n;
     reg [5:0]  osr_left_n, isr_cnt_n;
