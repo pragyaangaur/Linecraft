@@ -14,7 +14,7 @@ The full instruction set and register map are in `docs/spec.md` in the repositor
 
 The RP2350 on the demo board talks to the chip over SPI mode 0 on `ui_in[7]` (CSn), `ui_in[6]` (SCK), `ui_in[5]` (MOSI) and `uo_out[7]` (MISO), with SCK at most one eighth of the chip clock. Each transaction is a two byte header `{rw, addr[14:8]}, addr[7:0]` followed by data bytes. Reading address 0 returns `0x4C`.
 
-To run a protocol, write the program into the instruction memory at `0x400`, write the shuttle configuration at `0x100 + 0x40 * shuttle`, optionally load a line coder table at `0x200 + 0x20 * shuttle`, then set the shuttle's bit in the enable register at `0x001`. Data goes in and out through the FIFO registers at `0x008` to `0x00B`. The repository has an assembler and example programs for UART, SPI, I2C and USB low speed.
+To run a protocol, write the program into the instruction memory at `0x400`, write the shuttle configuration at `0x100 + 0x40 * shuttle`, optionally load a line coder table at `0x200 + 0x20 * shuttle`, then set the shuttle's bit in the enable register at `0x001`. Data goes in and out through the FIFO registers at `0x008` to `0x00B`. The repository has an assembler and 20 example programs, including UART, SPI, I2C, USB low speed, CAN, JTAG, 1-Wire, PS/2, DALI, DShot and WS2812.
 
 ## External hardware
 
