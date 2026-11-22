@@ -24,8 +24,22 @@ Programmable protocol engines already exist. The RP2040's PIO is the best known 
 - It **predicts** how much clock error between two chips the link survives. I measured the prediction in simulation, and it holds at every setting I tried, to within 0.4 percent.
 - It **builds the receiver for you** from the transmit rule alone. For every built-in code the derived receiver is the same size as the one I wrote by hand.
 
+## At a glance
+
+| | |
+| --- | --- |
+| Process and slot | Tiny Tapeout, IHP 130 nm (`ihp-sg13cmos5l`), 8x4 tiles |
+| Clock | 25 MHz, with timing met in every corner |
+| Engines | Four shuttles sharing 64 instructions of 24 bits |
+| Per shuttle | Fractional clock divider, 16 state line coder, CRC unit of width 1 to 32, 4 byte transmit and receive FIFOs |
+| Host interface | SPI mode 0 on `ui[7:5]` and `uo[7]` |
+| Protocol pins | 16, of which pins 8 to 15 are bidirectional with open drain |
+| Programs | 20, for the protocols in [the table below](#the-protocols) |
+| Hardening | GDS, Tiny Tapeout precheck and gate level test all pass in CI |
+
 ## Contents
 
+- [At a glance](#at-a-glance)
 - [What is inside the chip](#what-is-inside-the-chip)
 - [A protocol in twelve lines](#a-protocol-in-twelve-lines)
 - [Line codes as tables](#line-codes-as-tables)
@@ -168,7 +182,7 @@ I wrote the Verilog in [src/](src) from [docs/spec.md](docs/spec.md). A cycle ac
 - **Lockstep random testing** ([test/test_lockstep.py](test/test_lockstep.py)). Each trial loads a random 64 instruction program and random settings for all four shuttles into both the RTL and the model, then drives random pin inputs while a host pushes and pops FIFO bytes over SPI. On every clock cycle it compares every output pin, the interrupt flags and fifteen registers of every shuttle. Two campaigns of 200 trials of 1000 cycles each found no differences. Functional coverage shows that every opcode runs, every opcode that can stall does stall, and every jump condition is seen both taken and not taken ([docs/lockstep_coverage.txt](docs/lockstep_coverage.txt)).
 - **Protocol tests** ([test/test_protocols.py](test/test_protocols.py)) against the peer models in [test/peers.py](test/peers.py), which share no code with the toolchain.
 - **Toolchain tests** in [linecraft/tests](linecraft/tests), 178 of them. They cover the assembler, every CRC in the catalogue sent bit for bit on the wire (USB CRC5 and CRC16, CRC-32, CAN CRC-15, SMBus CRC-8 and others), the line code analyses and receiver synthesis.
-- **Gate level simulation** ([scripts/postsynth_sim.sh](scripts/postsynth_sim.sh)). The RTL is synthesised to gates and all 32 pin level tests run again on the netlist, and all of them pass.
+- **Gate level simulation.** The Tiny Tapeout workflow runs all 32 pin level tests again on the hardened netlist of the final layout, and all of them pass. [scripts/postsynth_sim.sh](scripts/postsynth_sim.sh) does the same locally on a Yosys netlist.
 - **Formal proofs** ([formal/run.sh](formal/run.sh)), which hold on every cycle of every run.
   - The fractional divider has zero long term drift. Tick k always falls at exactly floor(k(N + F/256)) cycles, proved by k-induction for every divider setting.
   - A whole shuttle keeps its invariants for every program and every input. FIFOs never overflow or underflow, shift counters stay in range, and a stopped shuttle keeps its state.
@@ -194,7 +208,7 @@ The current build passes the Tiny Tapeout precheck and the gate level test in CI
 
 ![Linecraft layout](docs/img/layout.png)
 
-The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. Registering the fetched instruction is the next step toward a faster clock, and the `fetch-reg` branch does this with every test passing. It fixes timing, but its layout is harder to route, and the router spends hours on the last few spots. Most of the wiring comes from four 24 bit read ports on the shared 64 entry instruction memory. At 25 MHz every protocol in the table still runs at its usual speed, since the fastest tick rate any of them needs is 9.6 MHz for DShot600.
+The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. The `fetch-reg` branch registers the fetched instruction to shorten it, with every test passing. Its layout is harder to route, and on a CI runner the router did not finish within six hours. On a faster machine it routes cleanly, but the slow corner still limits it to about 26 MHz, so it gains almost nothing over the current build. Most of the wiring comes from the four 24 bit read ports on the shared 64 entry instruction memory, and a smaller or latch based memory would be the way to a faster clock. At 25 MHz every protocol in the table still runs at its usual speed, since the fastest tick rate any of them needs is 9.6 MHz for DShot600.
 
 ## Try it
 
