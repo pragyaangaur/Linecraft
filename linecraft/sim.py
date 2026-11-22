@@ -1,6 +1,6 @@
 """Run a protocol preset in the cycle accurate model and save the pins as a VCD waveform.
 
-    python -m linecraft.sim uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=40e6 --send 48,69 --cycles 4000 --vcd uart.vcd
+    python -m linecraft.sim uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=25e6 --send 48,69 --cycles 4000 --vcd uart.vcd
 
 The arguments after the preset name are the keyword arguments of the function in linecraft.protocols, as for linecraft.export. `--send` pushes bytes into the TX FIFO of that shuttle, a few at a time as space frees up. The VCD file holds all 16 output pins and the IRQ flags, and opens in GTKWave or Surfer. No Verilog simulator is needed.
 """
@@ -80,7 +80,7 @@ def main(argv):
             kwargs[k] = parse(v)
     writes = PRESETS[argv[0]](**kwargs)
     samples = run(writes, kwargs.get("shuttle", 0), send, cycles)
-    write_vcd(vcd, samples, kwargs.get("clk_hz", 40e6))
+    write_vcd(vcd, samples, kwargs.get("clk_hz", 25e6))
     print(f"{cycles} cycles of {argv[0]} written to {vcd}")
     return 0
 

@@ -1,6 +1,6 @@
 """Save a protocol setup as JSON for a host board.
 
-    python -m linecraft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=50e6 > uart.json
+    python -m linecraft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=25e6 > uart.json
 
 The arguments after the preset name are the keyword arguments of the function in linecraft.protocols. The output is a JSON object with the preset name, its arguments and the list of [address, byte] writes, which host/linecraft_rp2350.py replays over SPI.
 """

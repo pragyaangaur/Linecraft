@@ -209,7 +209,7 @@ cd test && make
 To see a protocol without any Verilog tools, run it in the model and open the waveform in [GTKWave](https://gtkwave.sourceforge.net) or [Surfer](https://surfer-project.org).
 
 ```bash
-python -m linecraft.sim dshot shuttle=0 data_pin=1 clk_hz=40e6 --send 0x41,0x60 --cycles 3000 --vcd dshot.vcd
+python -m linecraft.sim dshot shuttle=0 data_pin=1 clk_hz=25e6 --send 0x41,0x60 --cycles 3000 --vcd dshot.vcd
 ```
 
 `scripts/check_all.sh` runs everything, including the proofs. Make cannot handle a project path that contains spaces, so run the cocotb tests from a path without them.
@@ -217,7 +217,7 @@ python -m linecraft.sim dshot shuttle=0 data_pin=1 clk_hz=40e6 --send 0x41,0x60 
 To use a real chip, `python -m linecraft.export` saves any protocol's setup as JSON, and [host/linecraft_rp2350.py](host/linecraft_rp2350.py) is a MicroPython driver for the RP2350 on the Tiny Tapeout demo board that loads it over SPI. The driver has not run on hardware yet.
 
 ```bash
-python -m linecraft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=40e6 > uart.json
+python -m linecraft.export uart_tx shuttle=0 tx_pin=1 baud=115200 clk_hz=25e6 > uart.json
 ```
 
 ## What is in this repository

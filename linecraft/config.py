@@ -1,7 +1,7 @@
 """Turn a high-level shuttle configuration plus a program into host writes.
 
     cfg = ShuttleConfig(out_base=0, set_count=1, out_right=True)
-    cfg.set_rate(clk_hz=50e6, rate_hz=115200)
+    cfg.set_rate(clk_hz=25e6, rate_hz=115200)
     writes = setup_writes(0, cfg, program)
     chip.write_all(writes)
 
