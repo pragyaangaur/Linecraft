@@ -1,27 +1,27 @@
+# Editor and system files
 .DS_Store
 .idea
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Simulation output
 *.vcd
 *.fst
 *.fst.hier
-runs
-tt_submission
-src/user_config.json
-src/config_merged.json
-test/sim_build
-test/__pycache__/
-test/results.xml
-test/gate_level_netlist.v
-
-AGENTS.md
-HANDOFF.md
-.DS_Store
-__pycache__/
-*.pyc
 sim_build/
 results.xml
-*.vcd
-*.fst
+test/gate_level_netlist.v
+
+# Hardening and proof output
 runs/
 build/
 formal/build/
+tt_submission
+src/user_config.json
+src/config_merged.json
+
+# Private notes
+AGENTS.md
+HANDOFF.md
 SUBMISSION_NOTES.md
