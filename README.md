@@ -49,6 +49,7 @@ Programmable protocol engines already exist. The RP2040's PIO is the best known 
 - [The protocols](#the-protocols)
 - [How it is verified](#how-it-is-verified)
 - [Fitting it on the chip](#fitting-it-on-the-chip)
+- [How AI tools were used](#how-ai-tools-were-used)
 - [Try it](#try-it)
 - [What is in this repository](#what-is-in-this-repository)
 
@@ -209,6 +210,14 @@ The current build passes the Tiny Tapeout precheck and the gate level test in CI
 ![Linecraft layout](docs/img/layout.png)
 
 The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. The `fetch-reg` branch registers the fetched instruction to shorten it, with every test passing. Its layout is harder to route, and on a CI runner the router did not finish within six hours. On a faster machine it routes cleanly, but the slow corner still limits it to about 26 MHz, so it gains almost nothing over the current build. Most of the wiring comes from the four 24 bit read ports on the shared 64 entry instruction memory, and a smaller or latch based memory would be the way to a faster clock. At 25 MHz every protocol in the table still runs at its usual speed, since the fastest tick rate any of them needs is 9.6 MHz for DShot600.
+
+## How AI tools were used
+
+I built Linecraft with Claude Code, Anthropic's coding agent, as a close collaborator. I chose the competition, set the goals and made the decisions about scope, naming and what to publish. The agent did most of the drafting of the specification, the Verilog, the Python toolchain, the tests and the documentation, and it ran the simulations and the hardening experiments.
+
+The verification was set up so that the agent's work could not grade itself. The RTL and the cycle accurate Python model were written separately from the same specification by separate agent sessions, and the lockstep test holds them equal on every pin and register on every cycle. Every protocol test checks the chip against a peer model or decoder written from the protocol's own specification, which shares no code with the toolchain. The formal proofs include a planted false assertion that must be found, so they cannot pass by being empty. The clock tolerance bound was written down before the sweep that tested it, and its first version failed and was corrected in the open.
+
+The agent also proposed the mathematical ideas in this README, which are line codes as finite state transducers, the clock tolerance bound, receiver synthesis by subset construction and checksums as CRCs with polynomial x^W + 1. Each one is tested by an experiment or a proof in this repository rather than taken on trust.
 
 ## Try it
 
