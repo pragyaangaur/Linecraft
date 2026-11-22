@@ -190,6 +190,10 @@ Linecraft targets an 8x4 tile slot on the Tiny Tapeout IHP 130 nm shuttle, which
 | The same at 40 MHz with placement density 60 | The whole flow finishes in under four hours, and only the slow corner (1.08 V, 125 C) fails, by 12.9 ns |
 | Density 60 at 25 MHz | Passes. Routing is clean, there are no setup failures in any corner, and the core is 61 percent full. This is the current build |
 
+The current build passes the Tiny Tapeout precheck and the gate level test in CI. This is its layout as rendered by the Tiny Tapeout workflow.
+
+![Linecraft layout](docs/img/layout.png)
+
 The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. Registering the fetched instruction is the next step toward a faster clock, and the `fetch-reg` branch does this with every test passing. It fixes timing, but its layout is harder to route, and the router spends hours on the last few spots. Most of the wiring comes from four 24 bit read ports on the shared 64 entry instruction memory. At 25 MHz every protocol in the table still runs at its usual speed, since the fastest tick rate any of them needs is 9.6 MHz for DShot600.
 
 ## Try it
