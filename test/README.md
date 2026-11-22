@@ -1,47 +1,26 @@
-# Sample testbench for a Tiny Tapeout project
+# Pin level tests
 
-This is a sample testbench for a Tiny Tapeout project. It uses [cocotb](https://docs.cocotb.org/en/stable/) to drive the DUT and check the outputs.
-See below to get started or for more information, check the [website](https://tinytapeout.com/hdl/testing/).
+These [cocotb](https://docs.cocotb.org/en/stable/) tests drive Linecraft only through its pins and its SPI host port, in the same way the RP2350 on the Tiny Tapeout demo board will.
 
-## Setting up
+| File | Contents |
+| --- | --- |
+| `test.py` | Basic tests of the ID register, the enable register, a FIFO loopback and a hand-encoded UART program |
+| `test_protocols.py` | One test for each protocol, checked against the peer models |
+| `test_lockstep.py` | Random programs and pin inputs, compared cycle by cycle with the Python model in `linecraft/model.py` |
+| `peers.py` | Protocol peers and decoders written from each protocol's own specification, sharing no code with the toolchain |
+| `linecraft_host.py` | The SPI host driver used by every test |
+| `tb.v` | The testbench wrapper around `tt_um_pragyaangaur_linecraft` |
 
-1. Edit [Makefile](Makefile) and modify `PROJECT_SOURCES` to point to your Verilog files.
-2. Edit [tb.v](tb.v) and replace `tt_um_example` with your module name.
-
-## How to run
-
-To run the RTL simulation:
+You need Icarus Verilog and the packages in `requirements.txt`. Make cannot handle a path with spaces in it, so if the repository sits in such a path, run the tests through a symlink without spaces.
 
 ```sh
 make -B
 ```
 
-To run gatelevel simulation, first harden your project and copy `../runs/wokwi/results/final/verilog/gl/{your_module_name}.v` to `gate_level_netlist.v`.
-
-Then run:
+This runs the RTL simulation of all three modules. The gate level simulation runs `test` and `test_protocols` on the hardened netlist. Copy the netlist from the hardening run to `gate_level_netlist.v`, set `PDK_ROOT`, and run:
 
 ```sh
 make -B GATES=yes
 ```
 
-If you wish to save the waveform in VCD format instead of FST format, edit tb.v to use `$dumpfile("tb.vcd");` and then run:
-
-```sh
-make -B FST=
-```
-
-This will generate `tb.vcd` instead of `tb.fst`.
-
-## How to view the waveform file
-
-Using GTKWave
-
-```sh
-gtkwave tb.fst tb.gtkw
-```
-
-Using Surfer
-
-```sh
-surfer tb.fst
-```
+The Tiny Tapeout workflow does this in CI, and `../scripts/postsynth_sim.sh` does it locally with a Yosys netlist instead. Waveforms are written to `tb.fst`, which opens in GTKWave with `gtkwave tb.fst tb.gtkw` or in Surfer with `surfer tb.fst`.
