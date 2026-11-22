@@ -20,7 +20,7 @@ from linecraft import linecodes, protocols                   # noqa: E402
 from linecraft.model import Chip                              # noqa: E402
 
 OUT = os.path.join(ROOT, "docs", "img")
-CLK = 40e6
+CLK = 25e6
 CSN_HIGH = 0x80
 
 INK = "#1f2933"
