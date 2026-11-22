@@ -46,7 +46,7 @@ Linecraft has four small processors that I call shuttles, after the part of a lo
 
 | Part | What it does |
 | --- | --- |
-| Clock divider | Sets the tick rate with 16 integer bits and 8 fraction bits, so 115,200 baud from a 40 MHz clock is within 0.01 percent, and a proof shows the error never builds up over time. It can also restart on every edge of an input pin, which turns it into a simple clock recovery loop |
+| Clock divider | Sets the tick rate with 16 integer bits and 8 fraction bits, so 115,200 baud from a 25 MHz clock is within 0.01 percent, and a proof shows the error never builds up over time. It can also restart on every edge of an input pin, which turns it into a simple clock recovery loop |
 | Line coder | A 16 state table that turns data bits into line symbols on transmit and back on receive. NRZI, Manchester, USB bit stuffing, CAN bit stuffing and HDLC zero insertion are all just different tables |
 | CRC unit | A shift register with any width from 1 to 32 bits and any polynomial, fed by the bits that pass through the shuttle. It checks frames on receive and appends the CRC on transmit |
 
@@ -186,9 +186,11 @@ Linecraft targets an 8x4 tile slot on the Tiny Tapeout IHP 130 nm shuttle, which
 | Synthesis tuned for area, flattened | The optimiser ran for hours in CI without finishing |
 | Synthesis tuned for area, keeping each shuttle as its own block until the end | Synthesis takes 30 seconds, and the design fits at 55 percent of the core |
 | The same at 50 MHz | 705 timing failures, worst by 4.6 ns |
-| The same at 40 MHz | No setup failures, and detailed routing finishes with no design rule violations. The run then stopped at the six hour limit of a CI job, during a short final reroute after antenna repair. This is the current target |
+| The same at 40 MHz | No setup failures in the typical corner, and detailed routing finishes with no design rule violations. The run then stopped at the six hour limit of a CI job, during a short final reroute after antenna repair |
+| The same at 40 MHz with placement density 60 | The whole flow finishes in under four hours, and only the slow corner (1.08 V, 125 C) fails, by 12.9 ns |
+| Density 60 at 25 MHz | Passes. Routing is clean, there are no setup failures in any corner, and the core is 61 percent full. This is the current build |
 
-The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. Registering the fetched instruction is the next step toward 50 MHz, and the `fetch-reg` branch does this with every test passing. At 40 MHz every protocol in the table still runs at its usual speed.
+The longest path runs from the program counter through the 64 to 1 instruction mux, the decoder and the shift data path in one cycle. Registering the fetched instruction is the next step toward a faster clock, and the `fetch-reg` branch does this with every test passing. It fixes timing, but its layout is harder to route, and the router spends hours on the last few spots. Most of the wiring comes from four 24 bit read ports on the shared 64 entry instruction memory. At 25 MHz every protocol in the table still runs at its usual speed, since the fastest tick rate any of them needs is 9.6 MHz for DShot600.
 
 ## Try it
 
